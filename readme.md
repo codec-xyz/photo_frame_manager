@@ -16,7 +16,7 @@ Plus button (**+**) > **Add package from git URL...**
 
 ![](PreviewImages~/Package002.png)
 
-Paste the url https://github.com/codec-xyz/photo_frame_manager and click add
+Paste the url https://github.com/codec-xyz/photo_frame_manager.git and click add
 
 ![](PreviewImages~/Package003.png)
 
