@@ -80,6 +80,12 @@ namespace codec.PhotoFrame {
 		[MenuItem("Photo Frames/Bake Photo Frames")]
 		public static void BakeTextures() {
 			var settings = SceneSettings.active;
+			if(settings == null) {
+				Scene curScene = SceneManager.GetActiveScene();
+				SceneSettings.ActiveSceneChanged(curScene, curScene);
+				settings = SceneSettings.active;
+			}
+
 			EditorUtility.SetDirty(settings);
 
 			try {
@@ -108,6 +114,12 @@ namespace codec.PhotoFrame {
 		[MenuItem("Photo Frames/Delete Bake")]
 		public static void DeleteTextures() {
 			var settings = SceneSettings.active;
+			if(settings == null) {
+				Scene curScene = SceneManager.GetActiveScene();
+				SceneSettings.ActiveSceneChanged(curScene, curScene);
+				settings = SceneSettings.active;
+			}
+
 			EditorUtility.SetDirty(settings);
 
 			try {
@@ -269,6 +281,11 @@ namespace codec.PhotoFrame {
 		}
 
 		public void OnGUI() {
+			if(SceneSettings.active == null) {
+				Scene curScene = SceneManager.GetActiveScene();
+				SceneSettings.ActiveSceneChanged(curScene, curScene);
+			}
+
 			EditorGUIUtility.labelWidth = 200;
 			SceneSettings.active.serializedObject.Update();
 
