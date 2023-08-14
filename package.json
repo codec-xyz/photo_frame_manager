@@ -1,0 +1,17 @@
+{
+  "name": "wtf.codec.photo-frame-manager",
+  "version": "1.0.0",
+  "displayName": "Photo Frame Manager",
+  "description": "Photo frame manager\n\nEasily manage photos and picture frames, and bake to optimized textures that use less memory, require fewer materials, and are sorted for mipmap streaming.\n\nhttps://github.com/codec-xyz/photo_frame_manager",
+  "unity": "2019.4",
+  "author": {
+    "name": "Codec",
+    "email": "dev@codec.wtf",
+    "url": "https://codec.wtf"
+  },
+  "documentationUrl": "https://github.com/codec-xyz/photo_frame_manager",
+  "dependencies": {
+    "com.unity.burst": "1.4.11",
+    "com.unity.mathematics": "1.2.6"
+  }
+}
