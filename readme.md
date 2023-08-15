@@ -1,6 +1,6 @@
 # Photo Frame Manager
 
-Unity editor tool to manage photos and picture frames, and bake to optimized textures that use less memory, require fewer materials, and are sorted for mipmap streaming. Comes with photo cropping, scaling, and resizing builtin with a live preview in the 3d scene and inspector.
+Unity editor tool to manage photos and picture frames, and bake to optimized textures that use less gpu memory, require fewer materials, and are sorted for mipmap streaming. Comes with photo cropping, scaling, and resizing builtin with a live preview in the 3d scene and inspector.
 
 This works for VRChat or any other unity projects. Note that this is an editor utility that makes and sets up assets for you before you build.
 
@@ -20,7 +20,7 @@ Paste the url https://github.com/codec-xyz/photo_frame_manager.git and click add
 
 ![](PreviewImages~/Package003.png)
 
-> Free to use picture frames fully set for this package can be downloaded here https://github.com/codec-xyz/photo_frame_manager/releases/tag/v1.0.0
+> Free to use picture frames fully setup for this package can be downloaded here https://github.com/codec-xyz/photo_frame_manager/releases/tag/v1.0.0
 >
 > These picture frames are CC0 (Public Domain)
 
@@ -70,7 +70,7 @@ All of these settings including the resolution update the photo frame preview in
 
 These files define picture frames. They are a set of picture frames that should look the same but have different aspect ratios. They also hold a material that gets copied and used for the photo.
 
-> Free to use picture frames fully set for this package can be downloaded here https://github.com/codec-xyz/photo_frame_manager/releases/tag/v1.0.0
+> Free to use picture frames fully setup for this package can be downloaded here https://github.com/codec-xyz/photo_frame_manager/releases/tag/v1.0.0
 >
 > These picture frames are CC0 (Public Domain)
 
@@ -138,7 +138,7 @@ When running **Delete Bake** only known and tracked assets are deleted. If for w
 
 This unity package improves the performance and memory usage compared to having seperate textures and materials per photo and does all this with a single click. Simplicity and ease of use is very important.
 
-The baking process has a purpose built sorting step that places physicaly close photos in the same textures. This aides the mipmap streaming process since far away photos are grouped into their own textures and the full resolution texture does not need to be kept in vram thus reducing vram usage. Mipmap streaming is a process handled by unity and the baked textures are set up for mipmap stream automatically when you bake photo frames.
+The baking process has a purpose built sorting step that places physicaly close photos in the same textures. This aides the mipmap streaming process since far away photos are grouped into their own textures and the full resolution texture does not need to be kept in vram thus reducing vram usage. Mipmap streaming is a process handled by unity and the baked textures are set up for mipmap streaming automatically when you bake photo frames.
 
 As a note moving around the photo frames a lot during runtime could make the mipmap streaming less effective. In such a case the Texture Fit bake setting can be set to 1 to prioritize fewer textures over mipmap streaming optimization.
 
