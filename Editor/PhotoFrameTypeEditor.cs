@@ -4,6 +4,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace codec.PhotoFrame {
 	[CustomEditor(typeof(PhotoFrameType))]
@@ -159,7 +160,8 @@ namespace codec.PhotoFrame {
 
 			bool changes = serializedObject.ApplyModifiedProperties();
 			if(changes) {
-				PhotoFrame[] photoFrames = (PhotoFrame[])FindObjectsOfType(typeof(PhotoFrame));
+				Scene activeScene = SceneManager.GetActiveScene();
+				var photoFrames = Resources.FindObjectsOfTypeAll<PhotoFrame>().Where(pf => pf.gameObject.scene == activeScene);
 				foreach(var photoFrame in photoFrames) photoFrame.updateEditorPreview();
 			}
 		}

@@ -34,6 +34,7 @@ namespace codec.PhotoFrame {
 
 		public delegate void ImportAssets(string[] path);
 		public static void Bake(PhotoFrame[] photoFrames, SceneSettings settings, bool isDebug, ImportAssets import = null) {
+			if(photoFrames.Length == 0) return;
 			TextureBaker.Input[] photoFrameInput = photoFrames.Select(PhotoFrameToInput).ToArray();
 			TextureBaker.isDebug = isDebug;
 			TextureBaker.Output[] outputs = TextureBaker.Bake(photoFrameInput, settings.textureSize, settings.margin, Mathf.Pow(settings.textureFit * 50f, 2), settings.skylineMaxSpread, out Texture2D[] textures);

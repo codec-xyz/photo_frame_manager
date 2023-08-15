@@ -29,10 +29,6 @@ namespace codec.PhotoFrame {
 		[NonSerialized] public Material defaultMaterial;
 
 		public void Awake() {
-			if(!defaultMaterial) {
-				defaultMaterial = new Material(Shader.Find("Unlit/Texture"));
-				defaultMaterial.hideFlags = HideFlags.NotEditable;
-			}
 			//fixes duplication
 			if(!savedData && framePrefab) DestroyImmediate(framePrefab);
 			if(!savedData && meshFilter) DestroyImmediate(meshFilter);
@@ -245,6 +241,11 @@ namespace codec.PhotoFrame {
 			bool livePreview = EditorPrefs.GetBool("wtf.codec.photo-frame-manager.livePreview", true);
 			if(!livePreview) return;
 
+			if(!defaultMaterial) {
+				defaultMaterial = new Material(Shader.Find("Unlit/Texture"));
+				defaultMaterial.hideFlags = HideFlags.NotEditable;
+			}
+
 			if(autoSelectFrameSize) doAutoSelectFrameSize();
 
 			GameObject frameSelected = getSelectedFrame();
@@ -301,10 +302,13 @@ namespace codec.PhotoFrame {
 			savedData = true;
 
 			if(framePrefab) DestroyImmediate(framePrefab);
+			meshFilter = GetComponent<MeshFilter>();
 			if(meshFilter) {
 				if(meshFilter.sharedMesh) DestroyImmediate(meshFilter.sharedMesh);
 				DestroyImmediate(meshFilter);
 			}
+
+			meshRenderer = GetComponent<MeshRenderer>();
 			if(meshRenderer) {
 				DestroyImmediate(meshRenderer);
 			}
@@ -343,6 +347,7 @@ namespace codec.PhotoFrame {
 				DestroyImmediate(framePrefab);
 			}
 
+			meshFilter = GetComponent<MeshFilter>();
 			if(meshFilter) {
 				var meshAsset = meshFilter.sharedMesh;
 				if(meshAsset) {
@@ -353,6 +358,7 @@ namespace codec.PhotoFrame {
 				DestroyImmediate(meshFilter);
 			}
 
+			meshRenderer = GetComponent<MeshRenderer>();
 			if(meshRenderer) {
 				EditorUtility.SetDirty(meshRenderer);
 				DestroyImmediate(meshRenderer);

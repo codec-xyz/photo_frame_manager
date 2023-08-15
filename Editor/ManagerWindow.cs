@@ -96,27 +96,37 @@ namespace codec.PhotoFrame {
 			}
 
 			EditorUtility.SetDirty(settings);
+			Scene activeScene = EditorSceneManager.GetActiveScene();
 
 			try {
 				AssetDatabase.StartAssetEditing();
 
-				PhotoFrame[] photoFrames = FindObjectsOfType<PhotoFrame>().Where(pf => pf.photo).ToArray();
+				PhotoFrame[] photoFrames = Resources.FindObjectsOfTypeAll<PhotoFrame>().Where(pf => pf.gameObject.scene == activeScene && pf.photo).ToArray();
 				foreach(var pf in photoFrames) pf.unlock();
-				var lostObjs = FindObjectsOfType<MarkTypeBaked>();
-				foreach(var lostObj in lostObjs) DestroyImmediate(lostObj);
+				var lostObjs = Resources.FindObjectsOfTypeAll<MarkTypeBaked>().Where(t => t.gameObject.scene == activeScene);
+				foreach(var lostObj in lostObjs) {
+					Transform parent = lostObj.transform.parent;
+					DestroyImmediate(lostObj);
+					PrefabUtility.RecordPrefabInstancePropertyModifications(parent);
+				}
 
 				PhotoFrameBaker.Bake(photoFrames, settings, EditorPrefs.GetBool(debugEditorPref, false), (string[] paths) => {
 					AssetDatabase.StopAssetEditing();
 					foreach(var path in paths) AssetDatabase.ImportAsset(path);
 					AssetDatabase.StartAssetEditing();
 				});
+
+				foreach(var pf in photoFrames) {
+					PrefabUtility.RecordPrefabInstancePropertyModifications(pf);
+				}
 			}
 			catch(Exception e) {
 				Debug.LogException(e);
 			}
 			finally {
 				AssetDatabase.StopAssetEditing();
-				EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+				EditorSceneManager.SaveScene(activeScene);
+
 			}
 		}
 
@@ -130,26 +140,33 @@ namespace codec.PhotoFrame {
 			}
 
 			EditorUtility.SetDirty(settings);
+			Scene activeScene = EditorSceneManager.GetActiveScene();
 
 			try {
 				AssetDatabase.StartAssetEditing();
 
-				foreach(var pf in FindObjectsOfType<PhotoFrame>()) {
+				var photoFrames = Resources.FindObjectsOfTypeAll<PhotoFrame>().Where(pf => pf.gameObject.scene == activeScene);
+				foreach(var pf in photoFrames) {
 					pf.unlock();
 					pf.updateEditorPreview();
+					PrefabUtility.RecordPrefabInstancePropertyModifications(pf);
 				}
 
 				settings.DeleteTexturesAndMaterials();
 
-				var lostObjs = FindObjectsOfType<MarkTypeBaked>();
-				foreach(var lostObj in lostObjs) DestroyImmediate(lostObj);
+				var lostObjs = Resources.FindObjectsOfTypeAll<MarkTypeBaked>().Where(t => t.gameObject.scene == activeScene);
+				foreach(var lostObj in lostObjs) {
+					Transform parent = lostObj.transform.parent;
+					DestroyImmediate(lostObj);
+					PrefabUtility.RecordPrefabInstancePropertyModifications(parent);
+				}
 			}
 			catch(Exception e) {
 				Debug.LogException(e);
 			}
 			finally {
 				AssetDatabase.StopAssetEditing();
-				EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+				EditorSceneManager.SaveScene(activeScene);
 			}
 		}
 
@@ -160,7 +177,8 @@ namespace codec.PhotoFrame {
 			else EditorPrefs.SetBool(livePreviewEditorPref, false);
 			Menu.SetChecked("Photo Frames/Live Preview", livePreview);
 
-			foreach(var photoFrame in FindObjectsOfType<PhotoFrame>()) {
+			Scene activeScene = SceneManager.GetActiveScene();
+			foreach(var photoFrame in Resources.FindObjectsOfTypeAll<PhotoFrame>().Where(pf => pf.gameObject.scene == activeScene)) {
 				if(livePreview) photoFrame.updateEditorPreview();
 				else photoFrame.turnOffEditorPreview();
 			}
@@ -200,7 +218,8 @@ namespace codec.PhotoFrame {
 		}
 
 		public void tab_PhotosGUI() {
-			PhotoFrame[] photoFrames = FindObjectsOfType<PhotoFrame>();
+			Scene activeScene = SceneManager.GetActiveScene();
+			PhotoFrame[] photoFrames = Resources.FindObjectsOfTypeAll<PhotoFrame>().Where(pf => pf.gameObject.scene == activeScene).ToArray();
 
 			GUILayout.Label($"{photoFrames.Length} Photos");
 
