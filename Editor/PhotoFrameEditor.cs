@@ -101,6 +101,10 @@ namespace codec.PhotoFrame {
 		public override void OnInspectorGUI() {
 			serializedObject.Update();
 
+			bool livePreview = EditorPrefs.GetBool(ManagerWindow.livePreviewEditorPref, true);
+
+			if(!livePreview) EditorGUILayout.HelpBox("To enable live preview toggle: Photo Frames > Live Preview", MessageType.Info);
+
 			bool anyLocked = false, doUnlock = false;
 			foreach(PhotoFrame pf in targets) {
 				if(pf.savedData) anyLocked = true;
@@ -185,7 +189,7 @@ namespace codec.PhotoFrame {
 			GUI.enabled = true;
 
 			var photoFrame = (PhotoFrame)target;
-			if(targets.Length == 1 && photoFrame.photo != null) {
+			if(livePreview && targets.Length == 1 && photoFrame.photo != null) {
 				photoFrame.updateResizeTexture();
 
 				photoFrame.getAspectRatios(out float photoAspectRatio, out float frameAspectRatio);

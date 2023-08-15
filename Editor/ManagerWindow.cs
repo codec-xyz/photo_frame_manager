@@ -9,13 +9,22 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace codec.PhotoFrame {
+	[InitializeOnLoad]
 	public class ManagerWindow : EditorWindow {
 		public const string badData = "Misformatted Data";
 		public const string debugEditorPref = "wtf.codec.photo-frame-manager.debug";
+		public const string livePreviewEditorPref = "wtf.codec.photo-frame-manager.livePreview";
 
 		public int tabSelected;
 		public Vector2 scrollPosition;
 		public Vector2 debugScroll;
+
+		static ManagerWindow() {
+			EditorApplication.delayCall += () => {
+				bool livePreview = EditorPrefs.GetBool(livePreviewEditorPref, true);
+				Menu.SetChecked("Photo Frames/Live Preview", livePreview);
+			};
+		}
 
 		[MenuItem("Photo Frames/Window")]
 		[MenuItem("Window/Photo Frames")]
@@ -141,6 +150,19 @@ namespace codec.PhotoFrame {
 			finally {
 				AssetDatabase.StopAssetEditing();
 				EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+			}
+		}
+
+		[MenuItem("Photo Frames/Live Preview")]
+		private static void ToggleAction() {
+			bool livePreview = !EditorPrefs.GetBool(livePreviewEditorPref, true);
+			if(livePreview) EditorPrefs.DeleteKey(livePreviewEditorPref);
+			else EditorPrefs.SetBool(livePreviewEditorPref, false);
+			Menu.SetChecked("Photo Frames/Live Preview", livePreview);
+
+			foreach(var photoFrame in FindObjectsOfType<PhotoFrame>()) {
+				if(livePreview) photoFrame.updateEditorPreview();
+				else photoFrame.turnOffEditorPreview();
 			}
 		}
 

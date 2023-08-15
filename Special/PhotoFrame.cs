@@ -25,8 +25,14 @@ namespace codec.PhotoFrame {
 
 		[NonSerialized] public RenderTexture resizeTexture;
 		[NonSerialized] public Texture photoInResizeTexture;
+		[NonSerialized] public MaterialPropertyBlock textureOverride;
+		[NonSerialized] public Material defaultMaterial;
 
 		public void Awake() {
+			if(!defaultMaterial) {
+				defaultMaterial = new Material(Shader.Find("Unlit/Texture"));
+				defaultMaterial.hideFlags = HideFlags.NotEditable;
+			}
 			//fixes duplication
 			if(!savedData && framePrefab) DestroyImmediate(framePrefab);
 			if(!savedData && meshFilter) DestroyImmediate(meshFilter);
@@ -224,8 +230,20 @@ namespace codec.PhotoFrame {
 			}
 		}
 
+		public void turnOffEditorPreview() {
+			if(savedData) return;
+			if(framePrefab) DestroyImmediate(framePrefab);
+			if(meshFilter) DestroyImmediate(meshFilter);
+			if(meshRenderer) DestroyImmediate(meshRenderer);
+			if(resizeTexture != null) resizeTexture.Release();
+			photoInResizeTexture = null;
+		}
+
 		public void updateEditorPreview() {
 			if(savedData) return;
+
+			bool livePreview = EditorPrefs.GetBool("wtf.codec.photo-frame-manager.livePreview", true);
+			if(!livePreview) return;
 
 			if(autoSelectFrameSize) doAutoSelectFrameSize();
 
@@ -250,6 +268,10 @@ namespace codec.PhotoFrame {
 				meshFilter.hideFlags = HideFlags.DontSaveInEditor | HideFlags.DontSaveInBuild | HideFlags.HideInInspector | HideFlags.NotEditable;
 			}
 
+			if(textureOverride == null) {
+				textureOverride = new MaterialPropertyBlock();
+			}
+
 			if(!meshRenderer) {
 				if(meshRenderer = gameObject.GetComponent<MeshRenderer>()) {
 					EditorUtility.SetDirty(meshRenderer);
@@ -265,14 +287,13 @@ namespace codec.PhotoFrame {
 			var size = getPhotoRealSize(frameAspectRatio);
 			SetupMesh(meshFilter.sharedMesh, size, uvMin, uvMax, false);
 
-			if(meshRenderer.sharedMaterial) DestroyImmediate(meshRenderer.sharedMaterial);
-			if(frameType && frameType.material) meshRenderer.sharedMaterial = Instantiate(frameType.material);
-			else meshRenderer.sharedMaterial = new Material(Shader.Find("Unlit/Texture"));
+			if(frameType && frameType.material) meshRenderer.sharedMaterial = frameType.material;
+			else meshRenderer.sharedMaterial = defaultMaterial;
 			updateResizeTexture();
-			if(frameType && frameType.textureSlot != "") meshRenderer.sharedMaterial.SetTexture(frameType.textureSlot, resizeTexture);
-			else meshRenderer.sharedMaterial.mainTexture = resizeTexture;
-
-			meshRenderer.sharedMaterial.hideFlags = HideFlags.HideInInspector | HideFlags.NotEditable;
+			textureOverride.Clear();
+			if(frameType && frameType.material && frameType.textureSlot != "") textureOverride.SetTexture(frameType.textureSlot, resizeTexture, UnityEngine.Rendering.RenderTextureSubElement.Default);
+			else textureOverride.SetTexture("_MainTex", resizeTexture, UnityEngine.Rendering.RenderTextureSubElement.Default);
+			meshRenderer.SetPropertyBlock(textureOverride);
 		}
 
 		public void setSavedData(string folder, Material material, Vector2 uvMin, Vector2 uvMax, bool uvRotate) {
@@ -285,7 +306,6 @@ namespace codec.PhotoFrame {
 				DestroyImmediate(meshFilter);
 			}
 			if(meshRenderer) {
-				if(meshRenderer.sharedMaterial) DestroyImmediate(meshRenderer.sharedMaterial);
 				DestroyImmediate(meshRenderer);
 			}
 
