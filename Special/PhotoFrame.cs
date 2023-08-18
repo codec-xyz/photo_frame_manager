@@ -11,6 +11,7 @@ namespace codec.PhotoFrame {
 		public int frameSize;
 		public Vector2 noFrameAspectRatio;
 		[NonSerialized] public Texture2D photo;
+		[NonSerialized] public string currentPhotoGUID = "";
 		public string photoGUID;
 		public bool autoSelectFrameSize = true;
 		public float cropScalePercent = 1;
@@ -62,6 +63,7 @@ namespace codec.PhotoFrame {
 		}
 
 		public void getAspectRatios(out float photoAspectRatio, out float frameAspectRatio) {
+			CheckPhotoIsSet();
 			if(photo == null) photoAspectRatio = 1;
 			else photoAspectRatio = (float)photo.width / (float)photo.height;
 			if(frameType?.aspectRatios != null && frameType.aspectRatios.Length > 0) {
@@ -76,6 +78,7 @@ namespace codec.PhotoFrame {
 		}
 
 		public Vector2Int getFinalResolution(bool copped = true, bool scaled = true) {
+			CheckPhotoIsSet();
 			if(photo == null) return new Vector2Int(0, 0);
 
 			Vector2 res = new Vector2(photo.width, photo.height);
@@ -217,12 +220,10 @@ namespace codec.PhotoFrame {
 				return;
 			}
 
-			if(photo != null) {
-				bool loaded = AssetDatabase.TryGetGUIDAndLocalFileIdentifier(photo, out string guid, out long localId);
-				if(loaded && photoGUID == guid) return;
-			}
+			if(photoGUID == currentPhotoGUID) return;
 
 			photo = (Texture2D)AssetDatabase.LoadAssetAtPath(AssetDatabase.GUIDToAssetPath(photoGUID), typeof(Texture2D));
+			currentPhotoGUID = photoGUID;
 		}
 
 		public void updateResizeTexture() {

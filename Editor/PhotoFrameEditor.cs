@@ -137,8 +137,16 @@ namespace codec.PhotoFrame {
 					bool loaded = AssetDatabase.TryGetGUIDAndLocalFileIdentifier(newPhoto, out string guid, out long localId);
 					if(loaded) photoGUID.stringValue = guid;
 					else photoGUID.stringValue = "";
+
+					foreach(PhotoFrame pf in targets) {
+						if(loaded) pf.currentPhotoGUID = guid;
+						else pf.currentPhotoGUID = "";
+					}
 				}
-				else photoGUID.stringValue = "";
+				else {
+					photoGUID.stringValue = "";
+					foreach(PhotoFrame pf in targets) pf.currentPhotoGUID = "";
+				}
 			}
 
 			EditorGUILayout.PropertyField(autoSelectFrameSize);
