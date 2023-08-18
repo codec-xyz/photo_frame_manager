@@ -11,7 +11,7 @@ namespace codec.PhotoFrame {
 		SerializedProperty frameType;
 		SerializedProperty frameSize;
 		SerializedProperty noFrameAspectRatio;
-		SerializedProperty photo;
+		SerializedProperty photoGUID;
 		SerializedProperty autoSelectFrameSize;
 		SerializedProperty cropScalePercent;
 		SerializedProperty cropOffset;
@@ -39,7 +39,7 @@ namespace codec.PhotoFrame {
 			frameType = serializedObject.FindProperty("frameType");
 			frameSize = serializedObject.FindProperty("frameSize");
 			noFrameAspectRatio = serializedObject.FindProperty("noFrameAspectRatio");
-			photo = serializedObject.FindProperty("photo");
+			photoGUID = serializedObject.FindProperty("photoGUID");
 			autoSelectFrameSize = serializedObject.FindProperty("autoSelectFrameSize");
 			cropScalePercent = serializedObject.FindProperty("cropScalePercent");
 			cropOffset = serializedObject.FindProperty("cropOffset");
@@ -117,7 +117,30 @@ namespace codec.PhotoFrame {
 			}
 
 			EditorGUILayout.PropertyField(frameType);
-			EditorGUILayout.PropertyField(photo);
+
+			bool isSame = true;
+			Texture2D samePhoto = ((PhotoFrame)target).photo;
+			foreach(PhotoFrame pf in targets) {
+				pf.CheckPhotoIsSet();
+				if(samePhoto != pf.photo) {
+					isSame = false;
+					samePhoto = null;
+					break;
+				}
+			}
+			EditorGUI.showMixedValue = !isSame;
+			EditorGUI.BeginChangeCheck();
+			Texture2D newPhoto = (Texture2D)EditorGUILayout.ObjectField("Photo", samePhoto, typeof(Texture2D), false, GUILayout.Height(EditorGUIUtility.singleLineHeight));
+			if(EditorGUI.EndChangeCheck()) {
+				foreach(PhotoFrame pf in targets) pf.photo = newPhoto;
+				if(newPhoto) {
+					bool loaded = AssetDatabase.TryGetGUIDAndLocalFileIdentifier(newPhoto, out string guid, out long localId);
+					if(loaded) photoGUID.stringValue = guid;
+					else photoGUID.stringValue = "";
+				}
+				else photoGUID.stringValue = "";
+			}
+
 			EditorGUILayout.PropertyField(autoSelectFrameSize);
 			if(!autoSelectFrameSize.boolValue) {
 				bool allNoFrame = true;
@@ -142,9 +165,8 @@ namespace codec.PhotoFrame {
 
 			EditorGUILayout.PropertyField(isAbsolsuteRes, new GUIContent("Use Absolute Resolution"));
 			if(isAbsolsuteRes.boolValue) {
-				var photoTexture = (Texture)photo.objectReferenceValue;
 				int maxSize = 8192;
-				if(photoTexture != null) maxSize = Math.Max(photoTexture.width, photoTexture.height);
+				if(samePhoto != null) maxSize = Math.Max(samePhoto.width, samePhoto.height);
 
 				CustomEditorGUILayout.IntSliderAllOptions(resolutionMaxMajorSize, 1, maxSize, 0, 8192);
 
@@ -188,6 +210,11 @@ namespace codec.PhotoFrame {
 
 			GUI.enabled = true;
 
+			bool changes = serializedObject.ApplyModifiedProperties();
+			if(changes) {
+				foreach(PhotoFrame target in targets) target.updateEditorPreview();
+			}
+
 			var photoFrame = (PhotoFrame)target;
 			if(livePreview && targets.Length == 1 && photoFrame.photo != null) {
 				photoFrame.updateResizeTexture();
@@ -210,11 +237,6 @@ namespace codec.PhotoFrame {
 
 				photoFrame.getCropUV(photoAspectRatio, frameAspectRatio, out Vector2 uvMin, out Vector2 uvMax);
 				DrawImagePreview(rect, photoFrame.resizeTexture, photoAspectRatio, uvMin, uvMax);
-			}
-
-			bool changes = serializedObject.ApplyModifiedProperties();
-			if(changes) {
-				foreach(PhotoFrame target in targets) target.updateEditorPreview();
 			}
 
 			EditorGUI.BeginChangeCheck();

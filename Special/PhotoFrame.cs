@@ -10,7 +10,8 @@ namespace codec.PhotoFrame {
 		public PhotoFrameType frameType;
 		public int frameSize;
 		public Vector2 noFrameAspectRatio;
-		public Texture2D photo;
+		[NonSerialized] public Texture2D photo;
+		public string photoGUID;
 		public bool autoSelectFrameSize = true;
 		public float cropScalePercent = 1;
 		public Vector2 cropOffset = Vector2.zero;
@@ -29,6 +30,7 @@ namespace codec.PhotoFrame {
 		[NonSerialized] public Material defaultMaterial;
 
 		public void Awake() {
+			CheckPhotoIsSet();
 			//fixes duplication
 			if(!savedData && framePrefab) DestroyImmediate(framePrefab);
 			if(!savedData && meshFilter) DestroyImmediate(meshFilter);
@@ -209,7 +211,22 @@ namespace codec.PhotoFrame {
 		//	truePhotoRes = new Vector2Int((int)args[0], (int)args[1]);
 		//}
 
+		public void CheckPhotoIsSet() {
+			if(photoGUID == null || photoGUID == "") {
+				photo = null;
+				return;
+			}
+
+			if(photo != null) {
+				bool loaded = AssetDatabase.TryGetGUIDAndLocalFileIdentifier(photo, out string guid, out long localId);
+				if(loaded && photoGUID == guid) return;
+			}
+
+			photo = (Texture2D)AssetDatabase.LoadAssetAtPath(AssetDatabase.GUIDToAssetPath(photoGUID), typeof(Texture2D));
+		}
+
 		public void updateResizeTexture() {
+			CheckPhotoIsSet();
 			var res = getFinalResolution(false);
 			if(resizeTexture == null || res.x != resizeTexture.width || res.y != resizeTexture.height) {
 				if(resizeTexture != null) resizeTexture.Release();
