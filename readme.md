@@ -1,12 +1,20 @@
 # Photo Frame Manager
 
-Unity editor tool to manage photos and picture frames, and bake to optimized textures that use less gpu memory, require fewer materials, and are sorted for mipmap streaming. Comes with photo cropping, scaling, and resizing builtin with a live preview in the 3d scene and inspector.
+![](PreviewImages~/Banner.png)
 
-This works for VRChat or any other unity projects. Note that this is an editor utility that makes and sets up assets for you before you build.
+Photo frame manager and optimizer package for Unity. Has photo cropping, scaling, and resizing with live previews in the 3d scene and inspector. Bakes photos to optimized textures which reduce gpu memory usage, lower the material count, and are optimized for mipmap streaming.
+
+Tested for Unity2019, Unity2021, Unity2022, and VRChat. Note that this is an editor only utility that makes and sets up assets for you before you build.
+
+> Free to use picture frames fully setup for this package can be downloaded here https://github.com/codec-xyz/photo_frame_manager/releases/tag/v2.0.0
+> 
+> These picture frames are CC0 (Public Domain)
+> 
+> ![](PreviewImages~/DefaultFrame001.png)
 
 ---
 
-## Install
+## Installing
 
 **Window** > **Package Manager**
 
@@ -20,11 +28,7 @@ Paste the url https://github.com/codec-xyz/photo_frame_manager.git and click add
 
 ![](PreviewImages~/Package003.png)
 
-> Free to use picture frames fully setup for this package can be downloaded here https://github.com/codec-xyz/photo_frame_manager/releases/tag/v1.0.0
->
-> These picture frames are CC0 (Public Domain)
-
-## Setup Photo Frames
+## Adding Photo Frames
 
 **Right click in the Hierachy** or click the **GameObject** menu at the top to open the game object context menu and click **Photo Frame** to add an empty photo frame to the scene.
 
@@ -44,17 +48,19 @@ Select the photo frame and look in the **Inspector** to see the settings.
 
 **Photo** - the photo you want to use
 
-**Auto Select Frame Size** - when checked will auto select the best matching frame size. If the frame type is set to none or the frame type file has no picture frames added will use the original photo aspect ratio. When uncheck lets you manually pick the picture frame. If the frame type is set to none or the frame type file has no picture frames added lets you select a custom aspect ratio
+**Auto Select Aspect Ratio** - when checked will auto select the best matching aspect ratio based on the frame and photo's aspect ratio
 
-**Crop Scale Percent** - zooms the crop in
+**Crop Scale** - zooms the crop in
 
-**Crop Offset X** - move the crop left or right. Note that this will do nothing if the crop is already at that edge
+**Crop Offset X** - move the crop left or right
 
-**Crop Offset Y** - move the crop up or down. Note that this will do nothing if the crop is already at that edge
+**Crop Offset Y** - move the crop up or down
 
-**Use Absolute Resolution** - when checked the option below lets you set the photo resolution in pixel units. When unchecked the option below lets you set the resolution as a multiple of the original
-
-**Resolution Max Major Size** - the size in pixels you want for the photo's larger side to be. Acts as an upper limit so if the size is larger than the photo's actual size its resolution stays unchanged. The buttons below are some presets for this value. This option is only visible when Use Absolute Resolution is checked
+**Resolution Type** - the way the resolution is controlled
+- **Use Scene Settings**
+- **Resolution Max Major Size** - the size in pixels you want for the photo's larger side to be. Acts as an upper limit so if the size is larger than the photo's actual size its resolution stays unchanged. The buttons below are some presets for this value
+- **Relative** - value 0 - 1 that scales the photos full resolution
+- **Full** - resolution stays unchanged. Note if the baked texture size is smaller then the resolution will be lowered to fit
 
 The selected photo is displayed with a grey overlay to show the area being cropped out.
 
@@ -70,13 +76,11 @@ All of these settings including the resolution update the photo frame preview in
 
 These files define picture frames. They are a set of picture frames that should look the same but have different aspect ratios. They also hold a material that gets copied and used for the photo.
 
-> Free to use picture frames fully setup for this package can be downloaded here https://github.com/codec-xyz/photo_frame_manager/releases/tag/v1.0.0
+> Free to use picture frames fully setup for this package can be downloaded here https://github.com/codec-xyz/photo_frame_manager/releases/tag/v2.0.0
 >
 > These picture frames are CC0 (Public Domain)
 
-If you want to setup your own first find or make some picture frame meshes. They need the space for the photo to be centered at (0, 0, 0) with it pointing in the positive direction on the z-axis in unity's coordinates; and the space for the photo needs to have one side of length one (either the smaller or larger side, just keep it consistent). Then bring them into unity in any format that can be drop directly into a scene for example: fbx, prefabs, etc.
-
-Then right click in the project file view > **Create** > **Photo Frame Type**
+**If you want to setup your own** bring the model(s) into unity in any format that can be drop directly into a scene for example: .fbx, .obj, .blend, .prefabs, etc. Then right click in the project file view > **Create** > **Photo Frame Type**
 
 ![](PreviewImages~/Menu003.png)
 
@@ -88,9 +92,18 @@ Select the file and look in the **Inspector** to see the settings.
 
 **Texture Slot** - a string of the texture slot to use on the material for the photo. If left blank the mainTexture slot is used
 
-**Is Smaller Dimension Always One** - whether the picture frames are setup with the smaller side of space for the photo being length one
+**Photo Offset** - photo offset for frame
 
-The rest is a list of the picture frame file and its aspect ratio. The order does not matter except that the first object in the list used the preview. Leaving the list blank is okay and will result in no picture frames. This can be used to just set the material of a photo.
+**Photo Rotation** - photo rotation for frame
+
+**Photo Dimensions** - setting for sizing the photo inserted into frame
+
+**Frame Matching** - settings for automatically resizing frame to fit photo
+- **None**
+- **Scale To Photo**
+- **Generate Frame** - algorithm to resize frame mesh to different aspect ratio
+
+The rest is a list of the picture frame file and its aspect ratio. The order does not matter except that the first object in the list is used as the preview. Leaving the list blank is okay and will result in no picture frames. This can be used to set just the material of a photo.
 
 The box at the bottom can be used to drag and drop one or more GameObject files into the list. This will also try to get the aspect ratios from the file names.
 
@@ -112,15 +125,41 @@ If you click the **Photo Frames** > **Window** that will bring up a window with 
 
 These settings are saved directly into the scene file, and all generated assets (materials, meshes, textures) are saved into the "Assets/PhotoFramesAutoGenerated" folder.
 
+### Bake Settings
+
 **Bake Texture Size** - the target size of the baked textures. Some texture might be smaller to reduce size
 
 **Photo Margin** - extra colored area around photos to prevent texture bleeding; measured in pixels
+
+**Scale Photo Margin** - Scales the photo margin down when baked textures are below the specified baked texture size
+
+**Join Duplicate Photos** - Joins duplicate photos in baked texture
+
+**Scale Resolution By Size** - Scales the resolution of photos based on their scale. Resolution starts being lowered at the maximum value and stops at the minimum value. Photos with resolution full are skipped
+
+**Resolution Max Major Size** - Photo frames set to \"Use Scene Settings\" will use this resolution value
+
+### Advanced Settings
 
 **Texture Fit** - sorting prioritization (spacial sorting for better mipmap streaming vs fewer textures)
 - 0 - sorted for better mipmap streaming
 - 1 - sorted for fewer textures
 
-**Skyline Max Spread** - a parameter to the pack algorithm. Its functionality is hard to explain without an explanation of the pack algorithm. A link to the paper about the packing algorithm used is linked below.
+**Estimated Pack Efficiency** - Expected packing efficiency used when sorting
+
+A link to the paper about the packing algorithm used is linked below.
+
+**Skyline Max Spread** - a parameter to the pack algorithm
+
+**Overhang Weight** - a parameter to the pack algorithm
+
+**Neighborhood Waste Weight** - a parameter to the pack algorithm
+
+**Top Waste Weight** - a parameter to the pack algorithm
+
+### Texture Settings
+
+These are named the same as Unity's texture import settings. The docs are found here https://docs.unity3d.com/Manual/class-TextureImporter.html
 
 ![](PreviewImages~/Window002.png)
 
@@ -129,6 +168,12 @@ These are all the photos present in the scene. Clicking a photo will select and 
 ![](PreviewImages~/Window003.png)
 
 These are all the baked textures currently saved and some information about each. Clicking a photo will select and highlight that photo frame in the scene.
+
+## UI Alignment
+
+If you don't like the right aligned fields you can turn them off in **Window Manger** > **Gear icon** in the top right > **Right Aligned Fields**
+
+![](PreviewImages~/UiSettings.png)
 
 ## Untracked Assets
 

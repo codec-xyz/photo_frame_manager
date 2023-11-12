@@ -1,3 +1,6 @@
+using codec.PhotoFrame;
+using System.Linq;
+using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 
@@ -6,17 +9,17 @@ namespace codec {
 		public static Rect handleSliderLayout(bool hasLabel, params GUILayoutOption[] options) {
 			if(options == null) options = new GUILayoutOption[] { };
 
-			var method_GetSliderRect = typeof(EditorGUILayout).GetMethod("GetSliderRect", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static, null, new[] { typeof(bool), typeof(GUILayoutOption[]) }, null);
+			var method_GetSliderRect = typeof(EditorGUILayout).GetMethod("GetSliderRect", BindingFlags.NonPublic | BindingFlags.Static, null, new[] { typeof(bool), typeof(GUILayoutOption[]) }, null);
 			var result_GetSliderRect = (Rect)method_GetSliderRect.Invoke(null, new object[] { hasLabel, options });
 
-			var field_TempContent = typeof(EditorGUILayout).GetField("s_LastRect", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+			var field_TempContent = typeof(EditorGUILayout).GetField("s_LastRect", BindingFlags.NonPublic | BindingFlags.Static);
 			field_TempContent.SetValue(null, result_GetSliderRect);
 
 			return result_GetSliderRect;
 		}
 
 		public static float SliderAllOptions(float value, float leftValue, float rightValue, float hardMin = float.MinValue, float hardMax = float.MaxValue, float power = 1, params GUILayoutOption[] options) {
-			return CustomEditorGUI.SliderAllOptions(handleSliderLayout(false, options), value, leftValue, rightValue, hardMin, hardMax, power);
+			return CustomEditorGUI.SliderAllOptions(handleSliderLayout(false, options), (GUIContent)null, value, leftValue, rightValue, hardMin, hardMax, power);
 		}
 
 		public static float SliderAllOptions(string label, float value, float leftValue, float rightValue, float hardMin = float.MinValue, float hardMax = float.MaxValue, float power = 1, params GUILayoutOption[] options) {

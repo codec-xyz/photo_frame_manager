@@ -7,12 +7,9 @@ using System.Linq;
 using System.Collections.Generic;
 using System;
 using Unity.Mathematics;
-using System.Text.RegularExpressions;
 
 namespace codec.PhotoFrame {
 	public static class TextureBaker {
-		public const float EstimatedPackEfficiency = 0.7f;
-
 		public static Material photoBakeMat;
 
 		public static bool isDebug = false;
@@ -54,11 +51,13 @@ namespace codec.PhotoFrame {
 			public bool uvRotate;
 		}
 
-		public static Output[] Bake(Input[] bakeInputs, int textureSize, int margin, float textureFit, float skylineMaxSpread, out Texture2D[] bakeTextures) {
+		public static Output[] Bake(Input[] bakeInputs, int textureSize, int margin, bool scaleMargin, float textureFit, float skylineMaxSpread, float overhangWeight, float neighborhoodWasteWeight, float topWasteWeight, float estimatedPackEfficiency, out Texture2D[] bakeTextures, PhotoFrameBaker.BakeProgressUpdate progressUpdate = null) {
 			d_cycleCount = 0;
 			d_log.Clear();
 			photoBakeMat = new Material(Shader.Find("Hidden/Codec/PhotoFrames/PhotoBake"));
 			AllocateNativeData(bakeInputs.Length);
+
+			if(isDebug) d_log.Add("Input:\n" + string.Join("\n", bakeInputs.Select((node, i) => $"{i,5}: (point: ({node.point.x,8:0.00}, {node.point.y,8:0.00}, {node.point.z,8:0.00}), sortGroup: {node.sortGroup,5}, uvMin: ({node.uvMin.x:0.0000}, {node.uvMin.y:0.0000}), uvMax: ({node.uvMax.x:0.0000}, {node.uvMax.y:0.0000}), size: ({node.size.x,5}, {node.size.y,5}))")));
 
 			var outputData = new Output[bakeInputs.Length];
 			var outputTextures = new List<Texture2D>();
@@ -71,14 +70,26 @@ namespace codec.PhotoFrame {
 					d_cycleCount++;
 					if(isDebug) d_log.Add($"Start Cycle {_s}");
 
-					NativeSlice<Sort2Pack>[] sort2Pack = Sort(in2Sorts, textureSize, textureFit, out int[] packTexSizes);
+					if(progressUpdate != null) progressUpdate($"Sorting (Cycle {_s + 1})", (bakeInputs.Length - in2Sorts.Length) / (float)bakeInputs.Length);
+
+					NativeSlice<Sort2Pack>[] sort2Pack = Sort(in2Sorts, textureSize, textureFit, estimatedPackEfficiency, out int[] packTexSizes, margin, scaleMargin);
+					if(scaleMargin) Sort2Pack_ScaleMargin(sort2Pack, packTexSizes, textureSize, margin);
+
+					if(progressUpdate != null) progressUpdate($"Packing (Cycle {_s + 1})", (bakeInputs.Length - in2Sorts.Length) / (float)bakeInputs.Length);
 
 					Pack2Merge[][] pack2MergePacked, pack2MergeFailed;
-					(pack2MergePacked, pack2MergeFailed) = Pack(sort2Pack, textureSize, skylineMaxSpread, packTexSizes, outputTextures.Count);
+					(pack2MergePacked, pack2MergeFailed) = Pack(sort2Pack, textureSize, skylineMaxSpread, overhangWeight, neighborhoodWasteWeight, topWasteWeight, packTexSizes, outputTextures.Count);
 
+					float completed = bakeInputs.Length - in2Sorts.Length;
 					for(int i = 0; i < pack2MergePacked.Length; i++) {
-						foreach(var pOut in pack2MergePacked[i]) outputData[pOut.id] = MergeUvOut(pOut, packTexSizes[i], margin, bakeInputs);
-						outputTextures.Add(Merge(pack2MergePacked[i], packTexSizes[i], margin, bakeInputs));
+						if(progressUpdate != null) {
+							completed += pack2MergePacked[i].Length;
+							progressUpdate($"Merging textures {i + 1}/{pack2MergePacked.Length} (Cycle {_s + 1})", completed / (float)bakeInputs.Length);
+						}
+
+						int scaledMargin = scaleMargin ? ScaleMargin(margin, textureSize, packTexSizes[i]) : margin;
+						foreach(var pOut in pack2MergePacked[i]) outputData[pOut.id] = MergeUvOut(pOut, packTexSizes[i], scaledMargin, bakeInputs);
+						outputTextures.Add(Merge(pack2MergePacked[i], packTexSizes[i], scaledMargin, bakeInputs));
 					}
 
 					in2Sorts = pack2MergeFailed.SelectMany(a => a).Select(pOut => in2SortsOriginal[pOut.id]).ToArray();
@@ -98,6 +109,12 @@ namespace codec.PhotoFrame {
 
 			bakeTextures = outputTextures.ToArray();
 			return outputData;
+		}
+
+		public static int ScaleMargin(int margin, int baseTextureSize, int textureSize) {
+			int scaledMargin = (int)(margin * textureSize / (float)baseTextureSize);
+			if(margin != 0 && scaledMargin == 0) scaledMargin = 1;
+			return scaledMargin;
 		}
 
 		public static NativeArray<In2Sort> na_in2Sorts;
@@ -136,13 +153,13 @@ namespace codec.PhotoFrame {
 			};
 		}
 
-		public static NativeSlice<Sort2Pack>[] Sort(In2Sort[] inputs, int textureSize, float textureFit, out int[] packTextureSizes) {
+		public static NativeSlice<Sort2Pack>[] Sort(In2Sort[] inputs, int textureSize, float textureFit, float estimatedPackEfficiency, out int[] packTextureSizes, int margin, bool scaleMargin) {
 			na_in2Sorts.GetSubArray(0, inputs.Length).CopyFrom(inputs);
 
 			var job = new SortJob {
 				inputCount = inputs.Length,
 				textureFit = textureFit,
-				maxPixels = (int)(textureSize * textureSize * EstimatedPackEfficiency),
+				maxPixels = (int)(textureSize * textureSize * estimatedPackEfficiency),
 				textureSize = textureSize,
 				inputs = na_in2Sorts,
 				bt = na_bt,
@@ -171,7 +188,18 @@ namespace codec.PhotoFrame {
 			return groups.ToArray();
 		}
 
-		public static (Pack2Merge[][], Pack2Merge[][]) Pack(NativeSlice<Sort2Pack>[] sort2Pack, int textrueSize, float skylineMaxSpread, int[] textureSizes, int textureIdStart) {
+		public static void Sort2Pack_ScaleMargin(NativeSlice<Sort2Pack>[] sort2Pack, int[] textureSizes, int textureSize, int margin) {
+			for(int i = 0; i < sort2Pack.Length; i++) {
+				int marginAdjust = margin - ScaleMargin(margin, textureSize, textureSizes[i]);
+				for(int a = 0; a < sort2Pack[i].Length; a++) {
+					Sort2Pack item = sort2Pack[i][a];
+					item.size -= new Vector2(2 * marginAdjust, 2 * marginAdjust);
+					sort2Pack[i][a] = item;
+				}
+			}
+		}
+
+		public static (Pack2Merge[][], Pack2Merge[][]) Pack(NativeSlice<Sort2Pack>[] sort2Pack, int textrueSize, float skylineMaxSpread, float overhangWeight, float neighborhoodWasteWeight, float topWasteWeight, int[] textureSizes, int textureIdStart) {
 			var jobs = new PackJob[sort2Pack.Length];
 			var na_jobs = new NativeArray<JobHandle>(sort2Pack.Length, Allocator.TempJob);
 			var na_packInputPlaced = new NativeArray<bool>[sort2Pack.Length];
@@ -193,6 +221,9 @@ namespace codec.PhotoFrame {
 						textureId = textureIdStart + i,
 						textureSize = (ushort)textureSizes[i],
 						skylineMaxSpread = (ushort)(textureSizes[i] * skylineMaxSpread),
+						overhangWeight = overhangWeight,
+						neighborhoodWasteWeight = neighborhoodWasteWeight,
+						topWasteWeight = topWasteWeight,
 						inputs = sort2Pack[i],
 						inputPlaced = na_packInputPlaced[i],
 						skylineY = na_skylineYs[i],
@@ -215,8 +246,8 @@ namespace codec.PhotoFrame {
 					failed[i] = arr.Skip(na_packFailSpots[i][0]).ToArray();
 
 					if(isDebug) {
-						string log = $"Pack (texture {i}):\n- skyline: {jobs[i].printSkyline()}\n";
-						log += "- packed: " + string.Join(", ", packed[i].Select(o => $"(i: {o.id}, x: {o.pos.x}, y: {o.pos.y})")) + "\n";
+						string log = $"Pack (texture {i}):\n- skyline: {PrintSkyline(jobs[i])}\n";
+						log += "- packed: " + string.Join(", ", packed[i].Select(o => $"(i: {o.id}, x: {o.pos.x}, y: {o.pos.y}, r: {(o.rotated ? 1 : 0)})")) + "\n";
 						log += "- failed: " + string.Join(", ", failed[i].Select(o => $"{o.id}"));
 
 						d_log.Add(log);
@@ -448,15 +479,18 @@ namespace codec.PhotoFrame {
 				if(btI == -1) return btI;
 
 				for(int _s = 0; _s < inputCount * 2; _s++) { // safty limit
-					if(bt[btI].pixels <= maxPixels && bt[btI].sortGroup != -1) break;
+					bool fits = bt[btI].pixels <= maxPixels
+					|| (bt[btI].in2SortI != -1 && bt[btI].pixels <= textureSize * textureSize);
+					if(fits && bt[btI].sortGroup != -1) break;
 					btI = bt_next(btI);
 				}
 
 				return btI;
 			}
 
-			private void addGroup(int btI) {
+			private int addGroup(int btI) {
 				int btRootParentI = bt[btI].linkBack;
+				int startValue_outputsGI = outputsGI;
 
 				for(int _s = 0; _s < inputCount; _s++) { // safety limit
 					btI = bt_nextEnd(btI);
@@ -472,6 +506,8 @@ namespace codec.PhotoFrame {
 
 					if(btI == btRootParentI) break;
 				}
+
+				return outputsGI - startValue_outputsGI;
 			}
 
 			public void Execute() {
@@ -487,17 +523,23 @@ namespace codec.PhotoFrame {
 
 					int curTexSize = textureSize;
 					int curMaxPixels = maxPixels;
-					while(bt[btI].pixels <= curMaxPixels / 4.0f
-					&& bt[btI].maxSize <= curTexSize / 2.0f
+					while(bt[btI].pixels * 4 <= curMaxPixels
+					&& bt[btI].maxSize * 2 <= curTexSize
 					&& curTexSize > 16) {
-						curTexSize /= 2;
-						curMaxPixels /= 4;
+						curTexSize >>= 1;
+						curMaxPixels >>= 2;
 					}
 
 					outputTextureSizes[outputSlicesI] = curTexSize;
 					outputSlices[outputSlicesI] = outputsGI;
+					int count = addGroup(btI);
+
+					if(count == 1) {
+						while(bt[btI].maxSize * 2 <= curTexSize && curTexSize > 16) curTexSize >>= 1;
+						outputTextureSizes[outputSlicesI] = curTexSize;
+					}
+
 					outputSlicesI++;
-					addGroup(btI);
 				}
 
 				if(outputSlicesI < inputCount) outputSlices[outputSlicesI] = outputsGI;
@@ -509,11 +551,22 @@ namespace codec.PhotoFrame {
 			public bool dir;
 		}
 
+		public static string PrintSkyline(PackJob job) {
+			string skylineStr = "";
+			for(int pos = 1; !job.s_outside(pos); pos = job.skyline_nextSpan(pos)) {
+				skylineStr += $"span(x: {pos}, width: {job.s_spanWidth(pos)}, y: {job.s_y(pos)}), ";
+			}
+			return skylineStr;
+		}
+
 		[BurstCompile(CompileSynchronously = true)]
 		public struct PackJob : IJob {
 			[ReadOnly] public int textureId;
 			[ReadOnly] public ushort textureSize;
 			[ReadOnly] public ushort skylineMaxSpread;
+			[ReadOnly] public float overhangWeight;
+			[ReadOnly] public float neighborhoodWasteWeight;
+			[ReadOnly] public float topWasteWeight;
 			[ReadOnly] public NativeSlice<Sort2Pack> inputs;
 			public NativeArray<bool> inputPlaced;
 			public NativeArray<ushort> skylineY;
@@ -551,15 +604,6 @@ namespace codec.PhotoFrame {
 			public int skyline_traverseBackward(in int pos) => s_dir(pos) == DirRight ? s_swapNeighbor(pos) : s_swapSpan(pos);
 
 			[BurstDiscard]
-			public string printSkyline() {
-				string skylineStr = "";
-				for(int pos = 1; !s_outside(pos); pos = skyline_nextSpan(pos)) {
-					skylineStr += $"span(x: {pos}, width: {s_spanWidth(pos)}, y: {s_y(pos)}), ";
-				}
-				return skylineStr;
-			}
-
-			[BurstDiscard]
 			public void check_skyline_set(int pos1, int pos2, ushort y) {
 				bool pos1Good = false, pos2Good = false;
 				bool dirGood = s_dir(pos1) != s_dir(pos2);
@@ -571,7 +615,7 @@ namespace codec.PhotoFrame {
 				}
 
 				if(!pos1Good || !pos2Good || !dirGood || !yGood) {
-					string errorMsg = $"skyline_setY pre check failed!!!; requested(pos1: {pos1}, pos2: {pos2}, y: {y}); skyline...\n{printSkyline()}";
+					string errorMsg = $"skyline_setY pre check failed!!!; requested(pos1: {pos1}, pos2: {pos2}, y: {y}); skyline...\n{PrintSkyline(this)}";
 					throw new Exception(errorMsg);
 				}
 			}
@@ -589,7 +633,7 @@ namespace codec.PhotoFrame {
 				}
 
 				if(!pos1Good || !pos2Good || !dirGood || !orderGood || !yGood) {
-					string errorMsg = $"skyline_setCut pre check failed!!!; requested(cut[0]: {cutPos[0]}, cut[1]: {cutPos[1]}, cut[2]: {cutPos[2]}, y: {y}); skyline...\n{printSkyline()}";
+					string errorMsg = $"skyline_setCut pre check failed!!!; requested(cut[0]: {cutPos[0]}, cut[1]: {cutPos[1]}, cut[2]: {cutPos[2]}, y: {y}); skyline...\n{PrintSkyline(this)}";
 					throw new Exception(errorMsg);
 				}
 			}
@@ -637,6 +681,7 @@ namespace codec.PhotoFrame {
 			}
 
 			public void skyline_addRect(ushort rectX, ushort rectY, int pos) {
+				ushort finalSpanY = (ushort)(s_y(pos) + rectY);
 				int3 cutPos = new int3(pos, s_swapSpan(pos, rectX - 1), s_swapSpan(pos));
 
 				int _s = 0; // safety limit
@@ -644,8 +689,14 @@ namespace codec.PhotoFrame {
 					cutPos.z = skyline_previousSpan(cutPos.z);
 				}
 
-				if(cutPos.z == cutPos.y) skyline_set(cutPos.x, cutPos.y, (ushort)(s_y(cutPos.x) + rectY));
-				else skyline_setCut(cutPos, (ushort)(s_y(cutPos.x) + rectY));
+				if(finalSpanY == s_y(s_swapNeighbor(pos)) && !s_outside(skyline_previousSpan(pos))) cutPos.x = skyline_previousSpan(pos);
+
+				if(cutPos.z == cutPos.y) {
+					if(finalSpanY == s_y(s_swapNeighbor(cutPos.y)) && !s_outside(skyline_previousSpan(cutPos.y))) cutPos.y = skyline_previousSpan(cutPos.y);
+
+					skyline_set(cutPos.x, cutPos.y, finalSpanY);
+				}
+				else skyline_setCut(cutPos, finalSpanY);
 			}
 
 			public void skyline_fillMinY(in int pos) {
@@ -747,8 +798,8 @@ namespace codec.PhotoFrame {
 
 				int matchEdgesCount = skyline_countRectMatchingEdges(rectX, rectY, pos);
 
-				var resultScore = 0;
-				resultScore += overhangArea * 3 + neighborhoodWasteArea * 2 + topWasteArea;
+				long resultScore = 0;
+				resultScore += (long)(overhangArea * overhangWeight + neighborhoodWasteArea * neighborhoodWasteWeight + topWasteArea * topWasteWeight);
 				resultScore = resultScore * 5 + (4 - matchEdgesCount);
 				return resultScore;
 			}

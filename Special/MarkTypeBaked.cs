@@ -3,6 +3,7 @@ using UnityEditor;
 using UnityEngine;
 
 namespace codec.PhotoFrame {
+	[AddComponentMenu("")]
 	public class MarkTypeBaked : MonoBehaviour {
 	}
 
@@ -11,7 +12,7 @@ namespace codec.PhotoFrame {
 	public class MarkTypeBakedEditor : Editor {
 		public override void OnInspectorGUI() {
 			GUILayout.Label("Internal use, don't touch");
-			GUILayout.Label("(Used for cleanup incase object gets lost)");
+			GUILayout.Label("Used for cleanup incase object gets lost");
 			base.OnInspectorGUI();
 		}
 	}

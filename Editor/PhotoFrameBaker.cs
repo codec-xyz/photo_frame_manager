@@ -1,8 +1,13 @@
+using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UIElements.Experimental;
+using static codec.PhotoFrame.TextureBaker;
+using static UnityEditor.PlayerSettings;
 
 namespace codec.PhotoFrame {
 	public static class PhotoFrameBaker {
@@ -19,7 +24,7 @@ namespace codec.PhotoFrame {
 			int shaderId = 0;
 			if(pf.frameType && pf.frameType.material) shaderId = pf.frameType.material.GetInstanceID();
 
-			pf.getAspectRatios(out float photoAspectRatio, out float frameAspectRatio);
+			pf.getAspectRatios(out float photoAspectRatio, out float frameAspectRatio, out _);
 			pf.getCropUV(photoAspectRatio, frameAspectRatio, out Vector2 uvMin, out Vector2 uvMax);
 
 			return new TextureBaker.Input {
@@ -32,72 +37,264 @@ namespace codec.PhotoFrame {
 			};
 		}
 
-		public delegate void ImportAssets(string[] path);
-		public static void Bake(PhotoFrame[] photoFrames, SceneSettings settings, bool isDebug, ImportAssets import = null) {
+		public static (TextureBaker.Input[] inputs, int[] indexes) PhotoFramesToInputs(PhotoFrame[] pfs) {
+			var info = pfs.Select(pf => {
+				pf.getAspectRatios(out float photoAspectRatio, out float frameAspectRatio, out _);
+				pf.getCropUV(photoAspectRatio, frameAspectRatio, out Vector2 uvMin, out Vector2 uvMax);
+				return (texture: pf.photo, point: pf.transform.position, uvMin, uvMax, size: pf.getFinalResolution(false, true));
+			}).ToArray();
+
+			var inputs = new List<(TextureBaker.Input i, int count)>();
+			var indexes = new int[info.Length];
+
+			for(int a = 0; a < info.Length; a++) {
+				bool original = true;
+				for(int i = 0; i < inputs.Count(); i++) {
+					if(inputs[i].i.texture != info[a].texture) continue;
+
+					Vector2Int size = info[a].size;
+					Vector2 uvMax = info[a].uvMax, uvMin = info[a].uvMin;
+					int addedBySelf = (int)(size.x * (uvMax.x - uvMin.x) * size.y * (uvMax.y - uvMin.y));
+
+					size = inputs[i].i.size;
+					uvMax = inputs[i].i.uvMax;
+					uvMin = inputs[i].i.uvMin;
+					int alreadyUsed = (int)(size.x * (uvMax.x - uvMin.x) * size.y * (uvMax.y - uvMin.y));
+
+					size = new Vector2Int(Math.Max(inputs[i].i.size.x, info[a].size.x), Math.Max(inputs[i].i.size.y, info[a].size.y));
+					uvMin = new Vector2(Math.Min(inputs[i].i.uvMin.x, info[a].uvMin.x), Math.Min(inputs[i].i.uvMin.y, info[a].uvMin.y));
+					uvMax = new Vector2(Math.Max(inputs[i].i.uvMax.x, info[a].uvMax.x), Math.Max(inputs[i].i.uvMax.y, info[a].uvMax.y));
+					int addedTogether = (int)(size.x * (uvMax.x - uvMin.x) * size.y * (uvMax.y - uvMin.y)) - alreadyUsed;
+
+					if(addedTogether > addedBySelf) continue;
+
+					indexes[a] = i;
+					var input = inputs[i].i;
+					input.point += info[a].point;
+					input.uvMin = new Vector2(Math.Min(input.uvMin.x, info[a].uvMin.x), Math.Min(input.uvMin.y, info[a].uvMin.y));
+					input.uvMax = new Vector2(Math.Max(input.uvMax.x, info[a].uvMax.x), Math.Max(input.uvMax.y, info[a].uvMax.y));
+					input.size = new Vector2Int(Math.Max(input.size.x, info[a].size.x), Math.Max(input.size.y, info[a].size.y));
+					inputs[i] = (i: input, count: inputs[i].count + 1);
+					original = false;
+					break;
+				}
+
+				if(original) {
+					indexes[a] = inputs.Count();
+					inputs.Add((i: new TextureBaker.Input {
+						texture = info[a].texture,
+						point = info[a].point,
+						sortGroup = 0,
+						uvMin = info[a].uvMin,
+						uvMax = info[a].uvMax,
+						size = info[a].size,
+					}, count: 1));
+				}
+			}
+
+			TextureBaker.Input[] tBInputs = inputs.Select(input => {
+				TextureBaker.Input tBInput = input.i;
+				tBInput.point /= input.count;
+				tBInput.size = new Vector2Int(
+					(int)(tBInput.size.x * (tBInput.uvMax.x - tBInput.uvMin.x)),
+					(int)(tBInput.size.y * (tBInput.uvMax.y - tBInput.uvMin.y))
+				);
+				return tBInput;
+			}).ToArray();
+
+			return (tBInputs, indexes);
+		}
+
+		public static void LimitPhotoSize(TextureBaker.Input[] inputs, int textureSize, int margin) {
+			int sizeLimit = textureSize - margin * 2;
+			for(int i = 0; i < inputs.Length; i++) {
+				Vector2Int size = inputs[i].size;
+				if(size.x > sizeLimit) size = size * sizeLimit / size.x;
+				if(size.y > sizeLimit) size = size * sizeLimit / size.y;
+				inputs[i].size = size;
+			}
+		}
+
+		public static void MakeDummyTextures(string[] paths) {
+			byte[] dummyTextureData = Utils.MakeTexture(1, 1, Color.white).EncodeToPNG();
+			foreach(string path in paths) {
+				File.WriteAllBytes(path, dummyTextureData);
+				AssetDatabase.ImportAsset(path);
+			}
+		}
+
+		public static (Vector2 uvMin, Vector2 uvMax) CalcFinalUv(Vector2 uvMin, Vector2 uvMax, Vector2 inputUvMin, Vector2 inputUvMax, Vector2 outputUvMin, Vector2 outputUvMax, bool rotate) {
+			Vector2 subUvMin = new Vector2(
+				Utils.Map(uvMin.x, inputUvMin.x, inputUvMax.x, 0, 1),
+				Utils.Map(uvMin.y, inputUvMin.y, inputUvMax.y, 0, 1)
+			);
+			Vector2 subUvMax = new Vector2(
+				Utils.Map(uvMax.x, inputUvMin.x, inputUvMax.x, 0, 1),
+				Utils.Map(uvMax.y, inputUvMin.y, inputUvMax.y, 0, 1)
+			);
+
+			if(rotate) {
+				(subUvMin, subUvMax) = (
+					new Vector2(subUvMin.y, 1 - subUvMax.x),
+					new Vector2(subUvMax.y, 1 - subUvMin.x)
+				);
+			}
+
+			Vector2 newUvMin = new Vector2(
+				Utils.Map(subUvMin.x, 0, 1, outputUvMin.x, outputUvMax.x),
+				Utils.Map(subUvMin.y, 0, 1, outputUvMin.y, outputUvMax.y)
+			);
+			Vector2 newUvMax = new Vector2(
+				Utils.Map(subUvMax.x, 0, 1, outputUvMin.x, outputUvMax.x),
+				Utils.Map(subUvMax.y, 0, 1, outputUvMin.y, outputUvMax.y)
+			);
+
+			return (newUvMin, newUvMax);
+		}
+
+		public static void Progress_BakePackSort(string info, float progess) => EditorUtility.DisplayProgressBar("Photo Frame Bake", info, progess * 0.3f);
+		public static void Progress_PreparingTextureFiles(int i, int total) => EditorUtility.DisplayProgressBar("Photo Frame Bake", $"Preparing texture files {i + 1}/{total}", 0.3f + 0.1f * (i / (float)total));
+		public static void Progress_PreparingFrames(int i, int total) => EditorUtility.DisplayProgressBar("Photo Frame Bake", $"Preparing frames {i + 1}/{total}", 0.4f + 0.05f * (i / (float)total));
+		public static void Progress_SavingTexutes(int i, int total) => EditorUtility.DisplayProgressBar("Photo Frame Bake", $"Saving textures {i + 1}/{total}", 0.45f + 0.3f * (i / (float)total));
+		public static void Progress_SettingUpPhotoFrames(int i, int total) => EditorUtility.DisplayProgressBar("Photo Frame Bake", $"Setting up photo frames {i + 1}/{total}", 0.75f + 0.25f * (i / (float)total));
+
+		public delegate void BakeProgressUpdate(string info, float progress);
+		public static void Bake(PhotoFrame[] photoFrames, SceneSettings settings, bool isDebug) {
 			if(photoFrames.Length == 0) return;
-			TextureBaker.Input[] photoFrameInput = photoFrames.Select(PhotoFrameToInput).ToArray();
+			TextureBaker.Input[] photoFrameInput;
+			int[] indexes;
+			if(settings.joinDuplicates) (photoFrameInput, indexes) = PhotoFramesToInputs(photoFrames);
+			else {
+				photoFrameInput = photoFrames.Select(PhotoFrameToInput).ToArray();
+				indexes = photoFrames.Select((_, i) => i).ToArray();
+			}
+			LimitPhotoSize(photoFrameInput, settings.textureSize, settings.margin);
 			TextureBaker.isDebug = isDebug;
-			TextureBaker.Output[] outputs = TextureBaker.Bake(photoFrameInput, settings.textureSize, settings.margin, Mathf.Pow(settings.textureFit * 50f, 2), settings.skylineMaxSpread, out Texture2D[] textures);
+			TextureBaker.Output[] outputs = TextureBaker.Bake(photoFrameInput, settings.textureSize, settings.margin, settings.scaleMargin, Mathf.Pow(settings.textureFit * 50f, 2), settings.skylineMaxSpread, settings.overhangWeight, settings.neighborhoodWasteWeight, settings.topWasteWeight, settings.estimatedPackEfficiency, out Texture2D[] textures, Progress_BakePackSort);
 
-			var texturePaths = new string[textures.Length];
 			string folder = AssureAutoSaveFolder();
-			for(int i = 0; i < textures.Length; i++) {
-				string path = $"{folder}/Photo-Texture-{System.Guid.NewGuid()}.png";
-				File.WriteAllBytes(path, textures[i].EncodeToPNG());
-				texturePaths[i] = path;
+			string[] texturePaths = Enumerable.Range(0, textures.Length).Select(_ => $"{folder}/Photo-Texture-{System.Guid.NewGuid()}.png").ToArray();
+			var textureMaterials = Enumerable.Range(0, textures.Length).Select(_ => new List<(Material source, Material created)>()).ToArray();
+			string[] meshPaths = Enumerable.Range(0, photoFrames.Length).Select(_ => $"{folder}/Photo-Mesh-{System.Guid.NewGuid()}.asset").ToArray();
+
+			byte[] dummyTextureData = Utils.MakeTexture(1, 1, Color.white).EncodeToPNG();
+			for(int i = 0; i < texturePaths.Length; i++) {
+				Progress_PreparingTextureFiles(i, texturePaths.Length);
+				File.WriteAllBytes(texturePaths[i], dummyTextureData);
+				AssetDatabase.ImportAsset(texturePaths[i]);
 			}
 
-			if(import != null) import(texturePaths);
-
-			settings.DeleteTexturesAndMaterials();
-			settings.textures = new Texture2D[textures.Length];
-			settings.materials = new Material[textures.Length];
-			List<PhotoFrame>[] photoFramesSave = new List<PhotoFrame>[textures.Length];
-
-			for(int i = 0; i < textures.Length; i++) {
-				TextureImporter importer = (TextureImporter)TextureImporter.GetAtPath(texturePaths[i]);
-				importer.mipmapEnabled = true;
-				importer.streamingMipmaps = true;
-				importer.maxTextureSize = textures[i].width;
-				importer.SaveAndReimport();
-
-				settings.textures[i] = AssetDatabase.LoadAssetAtPath<Texture2D>(texturePaths[i]);
-				photoFramesSave[i] = new List<PhotoFrame>();
-
-				Object.DestroyImmediate(textures[i]);
+			var frames = new List<(PhotoFrameType type, int index, float ratio, GameObject prefab, bool isGenerated)>();
+			for(int i = 0; i < photoFrames.Length; i++) {
+				PhotoFrame pf = photoFrames[i];
+				Progress_PreparingFrames(i, photoFrames.Length);
+				if(!pf.frameType) continue;
+				pf.getAspectRatios(out float photoAspectRatio, out float frameAspectRatio, out int frameIndex);
+				pf.getCropUV(photoAspectRatio, frameAspectRatio, out _, out _);
+				var size = pf.getPhotoWorldSize(frameAspectRatio, frameIndex, out Vector2 frameScale);
+				var sameInfo = frames.Find(info => info.type == pf.frameType && info.index == frameIndex && info.ratio == frameAspectRatio);
+				if(sameInfo != default) continue;
+				GameObject prefab = pf.frameType.getOrGenerateFrame(frameIndex, frameAspectRatio, out bool isGenerated, size);
+				if(isGenerated) {
+					AssetDatabase.CreateAsset(prefab.GetComponent<MeshFilter>().sharedMesh, $"{folder}/Photo-FrameMesh-{System.Guid.NewGuid()}.asset");
+					GameObject prefabFile = PrefabUtility.SaveAsPrefabAsset(prefab, $"{folder}/Photo-FramePrefab-{System.Guid.NewGuid()}.prefab");
+					GameObject.DestroyImmediate(prefab);
+					prefab = prefabFile;
+				}
+				sameInfo = (pf.frameType, frameIndex, frameAspectRatio, prefab, isGenerated);
+				frames.Add(sameInfo);
 			}
 
-			for(int i = 0; i < outputs.Length; i++) {
-				if(outputs[i].texture == -1) {
-					Debug.LogError($"Failed to bake PhotoFrame({photoFrames[i].name})");
-					continue;
+			try {
+				AssetDatabase.StartAssetEditing();
+
+				if(settings.hasBake) settings.deleteBake(false);
+
+				settings.hasBake = true;
+				settings.textures = texturePaths.Select(path => AssetDatabase.LoadAssetAtPath<Texture2D>(path)).ToArray();
+				List<PhotoFrame>[] photoFramesSave = new List<PhotoFrame>[textures.Length].Select(_ => new List<PhotoFrame>()).ToArray();
+				List<Mesh>[] meshesSave = new List<Mesh>[textures.Length].Select(_ => new List<Mesh>()).ToArray();
+
+				for(int i = 0; i < textures.Length; i++) {
+					Progress_SavingTexutes(i, textures.Length);
+					UpdateTextureImportSettings(settings, texturePaths[i], textures[i].width);
+					File.WriteAllBytes(texturePaths[i], textures[i].EncodeToPNG());
+					UnityEngine.Object.DestroyImmediate(textures[i]);
 				}
 
-				Texture2D texture = settings.textures[outputs[i].texture];
-				Material material = settings.materials[outputs[i].texture];
+				for(int i = 0; i < photoFrames.Length; i++) {
+					int textureIndex = outputs[indexes[i]].texture;
+					PhotoFrame pf = photoFrames[i];
 
-				if(material == null) {
-					if(photoFrames[i]?.frameType?.material) {
-						material = new Material(photoFrames[i].frameType.material);
-						if(photoFrames[i].frameType.textureSlot == "") material.mainTexture = texture;
-						else material.SetTexture(photoFrames[i].frameType.textureSlot, texture);
-					}
-					else {
-						material = new Material(Shader.Find("Unlit/Texture"));
-						material.mainTexture = texture;
+					if(textureIndex == -1) {
+						Debug.LogError($"Failed to bake PhotoFrame({pf.name})");
+						continue;
 					}
 
-					AssetDatabase.CreateAsset(material, $"{folder}/Photo-Material-{System.Guid.NewGuid()}.mat");
+					Material sourceMaterial = pf.photoMaterial;
+					Material material = textureMaterials[textureIndex].Find(matInfo => matInfo.source == sourceMaterial).created;
+					if(material == null) {
+						material = new Material(pf.photoMaterial);
+						material.SetTexture(pf.photoMaterialTextureSlot, settings.textures[textureIndex]);
+						AssetDatabase.CreateAsset(material, $"{folder}/Photo-Material-{System.Guid.NewGuid()}.mat");
+						textureMaterials[textureIndex].Add((source: sourceMaterial, created: material));
+					}
 
-					settings.materials[outputs[i].texture] = material;
+					Progress_SettingUpPhotoFrames(i, photoFrames.Length);
+
+					pf.getAspectRatios(out float photoAspectRatio, out float frameAspectRatio, out _);
+					pf.getCropUV(photoAspectRatio, frameAspectRatio, out Vector2 uvMin, out Vector2 uvMax);
+					(Vector2 newUvMin, Vector2 newUvMax) = CalcFinalUv(uvMin, uvMax, photoFrameInput[indexes[i]].uvMin, photoFrameInput[indexes[i]].uvMax, outputs[indexes[i]].uvMin, outputs[indexes[i]].uvMax, outputs[indexes[i]].uvRotate);
+
+					Mesh mesh = pf.setBakedData(folder, material, newUvMin, newUvMax, outputs[indexes[i]].uvRotate,
+					(type, index, ratio, size) => {
+						if(type == null) return null;
+						var sameInfo = frames.Find(info => info.type == type && info.index == index && info.ratio == ratio);
+						return sameInfo.prefab;
+					});
+					AssetDatabase.CreateAsset(mesh, meshPaths[i]);
+
+					photoFramesSave[textureIndex].Add(pf);
+					meshesSave[textureIndex].Add(mesh);
 				}
 
-				photoFrames[i].setSavedData(folder, material, outputs[i].uvMin, outputs[i].uvMax, outputs[i].uvRotate);
-				photoFramesSave[outputs[i].texture].Add(photoFrames[i]);
+				settings.pfCounts = photoFramesSave.Select(a => a.Count).ToArray();
+				settings.photoFrames = photoFramesSave.SelectMany(a => a).ToArray();
+				settings.meshes = meshesSave.SelectMany(a => a).ToArray();
+				settings.materials = textureMaterials.SelectMany(a => a.Select(b => b.created)).ToArray();
+				settings.frameMeshes = frames.Where(a => a.isGenerated).Select(a => a.prefab.GetComponent<MeshFilter>().sharedMesh).ToArray();
+				settings.framePrefabs = frames.Where(a => a.isGenerated).Select(a => a.prefab).ToArray();
 			}
+			finally {
+				//IDK unity 2022 needs two or asset import progress bar does not go away
+				EditorUtility.ClearProgressBar();
+				EditorUtility.ClearProgressBar();
+				AssetDatabase.StopAssetEditing();
+			}
+		}
 
-			settings.pfCounts = photoFramesSave.Select(a => a.Count).ToArray();
-			settings.photoFrames = photoFramesSave.SelectMany(a => a).ToArray();
+		public static void UpdateTextureImportSettings(SceneSettings settings, string path, int size = -1) {
+			TextureImporter importer = (TextureImporter)TextureImporter.GetAtPath(path);
+			importer.mipmapEnabled = true;
+			importer.streamingMipmaps = true;
+			if(size != -1) importer.maxTextureSize = size;
+			else importer.maxTextureSize = Utils.GetTextureSourceSize(importer).x;
+			importer.filterMode = FilterMode.Point;
+
+
+			importer.mipmapEnabled = settings.tex_generateMipmaps;
+			importer.streamingMipmaps = settings.tex_generateMipmaps && settings.tex_mipmapStreaming;
+			importer.streamingMipmapsPriority = settings.tex_mipmapPriority;
+			importer.mipMapsPreserveCoverage = settings.tex_preserveCoverage;
+			importer.mipmapFilter = settings.tex_mipmapFiltering;
+			importer.filterMode = settings.tex_filterMode;
+			importer.anisoLevel = settings.tex_anisoLevel;
+			importer.textureCompression = settings.tex_textureCompression;
+			importer.crunchedCompression = settings.tex_crunchedCompression;
+			importer.compressionQuality = settings.tex_crunchedcompressionQuality;
+
+			EditorUtility.SetDirty(importer);
+			importer.SaveAndReimport();
 		}
 	}
 }

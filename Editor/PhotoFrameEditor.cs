@@ -1,51 +1,46 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
+using static codec.PhotoFrame.PhotoFrame;
+using static codec.PhotoFrame.PhotoFrameEditor;
+using static UnityEditorInternal.ReorderableList;
 
 namespace codec.PhotoFrame {
 	[CustomEditor(typeof(PhotoFrame))]
 	[CanEditMultipleObjects]
 	public class PhotoFrameEditor : Editor {
 		SerializedProperty frameType;
-		SerializedProperty frameSize;
-		SerializedProperty noFrameAspectRatio;
 		SerializedProperty photoGUID;
-		SerializedProperty autoSelectFrameSize;
-		SerializedProperty cropScalePercent;
-		SerializedProperty cropOffset;
-		SerializedProperty isAbsolsuteRes;
-		SerializedProperty resolutionScale;
-		SerializedProperty resolutionMaxMajorSize;
+		SerializedProperty autoSelectAspectRatio;
+		SerializedProperty aspectRatio;
+		SerializedProperty cropScale;
+		SerializedProperty cropOffsetX;
+		SerializedProperty cropOffsetY;
+		SerializedProperty resolutionType;
+		SerializedProperty resolutionValue;
 
 		Texture2D cropOverlayTexture;
+
+		bool guiCustomChanges = false;
 
 		bool isScaleSliderBeingUsed = false;
 		float scaleSliderMax = 1;
 
-		private Texture2D MakeTex(int width, int height, Color col) {
-			Color[] pix = new Color[width * height];
-			for(int i = 0; i < pix.Length; ++i) {
-				pix[i] = col;
-			}
-			Texture2D result = new Texture2D(width, height);
-			result.SetPixels(pix);
-			result.Apply();
-			return result;
-		}
-
 		void OnEnable() {
 			frameType = serializedObject.FindProperty("frameType");
-			frameSize = serializedObject.FindProperty("frameSize");
-			noFrameAspectRatio = serializedObject.FindProperty("noFrameAspectRatio");
 			photoGUID = serializedObject.FindProperty("photoGUID");
-			autoSelectFrameSize = serializedObject.FindProperty("autoSelectFrameSize");
-			cropScalePercent = serializedObject.FindProperty("cropScalePercent");
-			cropOffset = serializedObject.FindProperty("cropOffset");
-			isAbsolsuteRes = serializedObject.FindProperty("isAbsolsuteRes");
-			resolutionScale = serializedObject.FindProperty("resolutionScale");
-			resolutionMaxMajorSize = serializedObject.FindProperty("resolutionMaxMajorSize");
+			autoSelectAspectRatio = serializedObject.FindProperty("autoSelectAspectRatio");
+			aspectRatio = serializedObject.FindProperty("aspectRatio");
+			cropScale = serializedObject.FindProperty("cropScale");
+			cropOffsetX = serializedObject.FindProperty("cropOffsetX");
+			cropOffsetY = serializedObject.FindProperty("cropOffsetY");
+			resolutionType = serializedObject.FindProperty("resolutionType");
+			resolutionValue = serializedObject.FindProperty("resolutionValue");
 		}
 
 		private void DrawImagePreview(Rect rect, Texture texture, float aspectRatio, Vector2 uvMin, Vector2 uvMax) {
@@ -61,9 +56,9 @@ namespace codec.PhotoFrame {
 			rect.width = Mathf.Round(rect.width);
 			rect.height = Mathf.Round(rect.height);
 
-			GUI.DrawTexture(rect, texture);
+			if(texture) GUI.DrawTexture(rect, texture);
 
-			if(cropOverlayTexture == null) cropOverlayTexture = MakeTex(1, 1, new Color(0.5f, 0.5f, 0.5f, 0.85f));
+			if(cropOverlayTexture == null) cropOverlayTexture = Utils.MakeTexture(1, 1, new Color(0.5f, 0.5f, 0.5f, 0.85f));
 
 			GUIStyle style = new GUIStyle(GUI.skin.box);
 			style.normal.background = cropOverlayTexture;
@@ -84,155 +79,183 @@ namespace codec.PhotoFrame {
 			}
 		}
 
-		private string[] getFrameSizeArray() {
-			if(frameType.objectReferenceValue == null) return new string[] { "--" };
-			PhotoFrameType group = (PhotoFrameType)frameType.objectReferenceValue;
+		public void PhotoPropertyField(out Texture2D singlePhoto) {
+			singlePhoto = Utils.Collapse(targets.Cast<PhotoFrame>().Select(pf => pf.photo), out bool isSame, null);
 
-			string[] frameSizeArray = new string[group.aspectRatios.Length];
-			for(int i = 0; i < group.aspectRatios.Length; i++) {
-				double ratio = 1;
-				if(group.aspectRatios[i].x != 0 && group.aspectRatios[i].y != 0) ratio = (double)group.aspectRatios[i].x / (double)group.aspectRatios[i].y;
-				frameSizeArray[i] = group.photoFrames[i].name + " -- (" + new Fraction(ratio).ToString().Replace("/", " \u2215 ") + " = " + ratio.ToString("0.000") + ")";
-			}
-
-			return frameSizeArray;
-		}
-
-		public override void OnInspectorGUI() {
-			serializedObject.Update();
-
-			bool livePreview = EditorPrefs.GetBool(ManagerWindow.livePreviewEditorPref, true);
-
-			if(!livePreview) EditorGUILayout.HelpBox("To enable live preview toggle: Photo Frames > Live Preview", MessageType.Info);
-
-			bool anyLocked = false, doUnlock = false;
-			foreach(PhotoFrame pf in targets) {
-				if(pf.savedData) anyLocked = true;
-			}
-
-			if(anyLocked) {
-				if(GUILayout.Button("Unlock")) doUnlock = true;
-
-				GUI.enabled = false;
-			}
-
-			EditorGUILayout.PropertyField(frameType);
-
-			bool isSame = true;
-			Texture2D samePhoto = ((PhotoFrame)target).photo;
-			foreach(PhotoFrame pf in targets) {
-				pf.CheckPhotoIsSet();
-				if(samePhoto != pf.photo) {
-					isSame = false;
-					samePhoto = null;
-					break;
-				}
-			}
 			EditorGUI.showMixedValue = !isSame;
 			EditorGUI.BeginChangeCheck();
-			Texture2D newPhoto = (Texture2D)EditorGUILayout.ObjectField("Photo", samePhoto, typeof(Texture2D), false, GUILayout.Height(EditorGUIUtility.singleLineHeight));
+			singlePhoto = (Texture2D)UtilsGUI.AlignedObjectField(new GUIContent("Photo"), singlePhoto, typeof(Texture2D), false, photoGUID);
+			if(EditorGUI.EndChangeCheck()) photoGUID.stringValue = Utils.GetGUID(singlePhoto);
+
+			bool isStretchWarn = Utils.Collapse(targets.Cast<PhotoFrame>().Select(pf => pf.isPhotoStretchedWarn), out isSame, true);
+			if(isStretchWarn) {
+				UtilsGUI.BeginHelpBox(UtilsGUI.MultiText(targets.Length, isSame, "Photo is", "Photos are", "Some photos are") + "being stretched during import", MessageType.Info);
+				GUILayout.FlexibleSpace();
+				if(GUILayout.Button("Fix now")) {
+					foreach(PhotoFrame pf in targets) pf.fixPhotoStretch();
+				}
+				UtilsGUI.EndHelpBox();
+			}
+		}
+
+		public void AspectRatioDropdown(PhotoFrameType pfType) {
+			EditorGUI.showMixedValue = aspectRatio.hasMultipleDifferentValues;
+			EditorGUI.BeginChangeCheck();
+			int index = pfType.getIndex(aspectRatio.vector2Value) ?? -1;
+			var frameSizeNames = pfType.getFrameSizeNames();
+			bool notFoundAspectRaio = (index == -1 && aspectRatio.vector2Value != null);
+			if(notFoundAspectRaio) {
+				frameSizeNames = frameSizeNames.Prepend($"Missing Aspect Ratio ({aspectRatio.vector2Value.x}, {aspectRatio.vector2Value.y})");
+				index++;
+			}
+			int newIndex = UtilsGUI.AlignedPopup(new GUIContent("Frame Size"), index, frameSizeNames.Select(i => new GUIContent(i)).ToArray(), aspectRatio);
 			if(EditorGUI.EndChangeCheck()) {
-				foreach(PhotoFrame pf in targets) pf.photo = newPhoto;
-				if(newPhoto) {
-					bool loaded = AssetDatabase.TryGetGUIDAndLocalFileIdentifier(newPhoto, out string guid, out long localId);
-					if(loaded) photoGUID.stringValue = guid;
-					else photoGUID.stringValue = "";
-
-					foreach(PhotoFrame pf in targets) {
-						if(loaded) pf.currentPhotoGUID = guid;
-						else pf.currentPhotoGUID = "";
-					}
-				}
-				else {
-					photoGUID.stringValue = "";
-					foreach(PhotoFrame pf in targets) pf.currentPhotoGUID = "";
-				}
+				if(notFoundAspectRaio && index == 0) aspectRatio.vector2Value = aspectRatio.vector2Value;
+				else if(notFoundAspectRaio && index > 0) aspectRatio.vector2Value = pfType.aspectRatios[newIndex - 1];
+				else aspectRatio.vector2Value = pfType.aspectRatios[newIndex];
 			}
+		}
 
-			EditorGUILayout.PropertyField(autoSelectFrameSize);
-			if(!autoSelectFrameSize.boolValue) {
-				bool allNoFrame = true;
-				foreach(PhotoFrame pf in targets) {
-					if(pf.frameType?.aspectRatios != null && pf.frameType?.aspectRatios.Length > 0) allNoFrame = false;
-				}
+		public void AspectRatioField() {
+			bool prefabOverridePreview = isPrefabOverrideComapare && aspectRatio.prefabOverride;
+			if(autoSelectAspectRatio.boolValue && !prefabOverridePreview) return;
+			if(frameType.hasMultipleDifferentValues) return;
+			if(prefabOverridePreview) CustomEditorGUI.lockValue = true;
 
-				if(frameType.objectReferenceValue != null) frameSize.intValue = EditorGUILayout.Popup("Frame Size", frameSize.intValue, getFrameSizeArray());
-				if(allNoFrame) EditorGUILayout.PropertyField(noFrameAspectRatio, new GUIContent("Aspect Ratio"));
+			PhotoFrameType pfType = frameType.objectReferenceValue as PhotoFrameType;
+
+			if(pfType && pfType.haveFrames() && (pfType.frameMatching == FrameMatching.None
+			|| pfType.frameMatching == FrameMatching.ScaleToPhoto
+			|| (pfType.frameMatching == FrameMatching.GenerateFrame && pfType.limitAspectRatiosToList))) {
+				AspectRatioDropdown(pfType);
 			}
-			EditorGUILayout.Slider(cropScalePercent, 0.0001f, 1);
-			Vector2 cropOffsetVec = cropOffset.vector2Value;
-			cropOffsetVec.x = EditorGUILayout.Slider("Crop Offset X", cropOffsetVec.x, -1, 1);
-			cropOffsetVec.y = EditorGUILayout.Slider("Crop Offset Y", cropOffsetVec.y, -1, 1);
-			EditorGUI.Slider(new Rect(), 0, 0, 0);
-			if(GUILayout.Button("Reset Crop")) {
-				cropScalePercent.floatValue = 1;
-				cropOffsetVec.Set(0, 0);
-				GUI.FocusControl("");
-			}
-			cropOffset.vector2Value = cropOffsetVec;
+			else UtilsGUI.AlignedPropertyField(new GUIContent("Aspect Ratio"), aspectRatio);
 
-			EditorGUILayout.PropertyField(isAbsolsuteRes, new GUIContent("Use Absolute Resolution"));
-			if(isAbsolsuteRes.boolValue) {
+			CustomEditorGUI.lockValue = false;
+		}
+
+		public void ResolutionControl(Texture2D samePhoto, ResolutionType type) {
+			if(type == ResolutionType.AbsoluteMajor || (isPrefabOverrideComapare && resolutionValue.prefabOverride && resolutionValue.floatValue > 1)) {
+				if(type != ResolutionType.AbsoluteMajor) CustomEditorGUI.lockValue = true;
 				int maxSize = 8192;
 				if(samePhoto != null) maxSize = Math.Max(samePhoto.width, samePhoto.height);
 
-				CustomEditorGUILayout.IntSliderAllOptions(resolutionMaxMajorSize, 1, maxSize, 0, 8192);
-
-				Color initialValue = GUI.backgroundColor;
-				Color tinted = new Color(0.55f, 1.25f, 1.85f, 1);//new Color(0.62f, 1.34f, 2, 1);
-				int size = resolutionMaxMajorSize.intValue;
-
-				GUILayout.BeginHorizontal();
-				GUI.backgroundColor = size <= 341 ? tinted : initialValue;
-				if(GUILayout.Button("SD (144p)")) { resolutionMaxMajorSize.intValue = 256; GUI.FocusControl(""); }
-				GUI.backgroundColor = 341 < size && size <= 533 ? tinted : initialValue;
-				if(GUILayout.Button("SD (240p)")) { resolutionMaxMajorSize.intValue = 426; GUI.FocusControl(""); }
-				GUI.backgroundColor = 533 < size && size <= 747 ? tinted : initialValue;
-				if(GUILayout.Button("SD (360p)")) { resolutionMaxMajorSize.intValue = 640; GUI.FocusControl(""); }
-				GUI.backgroundColor = 747 < size && size <= 1067 ? tinted : initialValue;
-				if(GUILayout.Button("SD (480p)")) { resolutionMaxMajorSize.intValue = 854; GUI.FocusControl(""); }
-				GUI.backgroundColor = 1067 < size && size <= 1600 ? tinted : initialValue;
-				if(GUILayout.Button("HD (720p)")) { resolutionMaxMajorSize.intValue = 1280; GUI.FocusControl(""); }
-				GUI.backgroundColor = 1600 < size && size <= 2240 ? tinted : initialValue;
-				if(GUILayout.Button("FULL HD")) { resolutionMaxMajorSize.intValue = 1920; GUI.FocusControl(""); }
-				GUI.backgroundColor = 2240 < size && size <= 3200 ? tinted : initialValue;
-				if(GUILayout.Button("2k")) { resolutionMaxMajorSize.intValue = 2560; GUI.FocusControl(""); }
-				GUI.backgroundColor = 3200 < size && size <= 5760 ? tinted : initialValue;
-				if(GUILayout.Button("4k")) { resolutionMaxMajorSize.intValue = 3840; GUI.FocusControl(""); }
-				GUI.backgroundColor = 5760 < size ? tinted : initialValue;
-				if(GUILayout.Button("8k")) { resolutionMaxMajorSize.intValue = 7680; GUI.FocusControl(""); }
-				GUI.backgroundColor = initialValue;
-				GUILayout.EndHorizontal();
+				EditorGUI.showMixedValue = resolutionValue.hasMultipleDifferentValues;
+				EditorGUI.BeginChangeCheck();
+				int newValue = UtilsGUI.ResolutionPicker(new GUIContent("Max Major Size"), (int)resolutionValue.floatValue, maxSize, resolutionValue);
+				if(EditorGUI.EndChangeCheck()) resolutionValue.floatValue = newValue;
+				CustomEditorGUI.lockValue = false;
 			}
-			else {
-				EditorGUILayout.Slider(resolutionScale, 0.0001f, 1);
+			else if(type == ResolutionType.Relative || (isPrefabOverrideComapare && resolutionValue.prefabOverride && resolutionValue.floatValue <= 1)) {
+				if(type != ResolutionType.Relative) CustomEditorGUI.lockValue = true;
+				UtilsGUI.AlignedSliderAllOptions(new GUIContent("Resolution Value"), resolutionValue, 0.0001f, 1, 0.0001f, 1);
+				CustomEditorGUI.lockValue = false;
+				bool initialEnabled = GUI.enabled;
+				if(type != ResolutionType.Relative) GUI.enabled = false;
 				GUILayout.BeginHorizontal();
-				if(GUILayout.Button("1/12")) { resolutionScale.floatValue = 1.0f / 12.0f; GUI.FocusControl(""); }
-				if(GUILayout.Button("1/8")) { resolutionScale.floatValue = 1.0f / 8.0f; GUI.FocusControl(""); }
-				if(GUILayout.Button("1/4")) { resolutionScale.floatValue = 1.0f / 4.0f; GUI.FocusControl(""); }
-				if(GUILayout.Button("1/3")) { resolutionScale.floatValue = 1.0f / 3.0f; GUI.FocusControl(""); }
-				if(GUILayout.Button("1/2")) { resolutionScale.floatValue = 1.0f / 2.0f; GUI.FocusControl(""); }
-				if(GUILayout.Button("1")) { resolutionScale.floatValue = 3; GUI.FocusControl(""); }
+				if(GUILayout.Button("1/12")) { resolutionValue.floatValue = 1.0f / 12.0f; GUI.FocusControl(""); }
+				if(GUILayout.Button("1/8")) { resolutionValue.floatValue = 1.0f / 8.0f; GUI.FocusControl(""); }
+				if(GUILayout.Button("1/4")) { resolutionValue.floatValue = 1.0f / 4.0f; GUI.FocusControl(""); }
+				if(GUILayout.Button("1/3")) { resolutionValue.floatValue = 1.0f / 3.0f; GUI.FocusControl(""); }
+				if(GUILayout.Button("1/2")) { resolutionValue.floatValue = 1.0f / 2.0f; GUI.FocusControl(""); }
+				if(GUILayout.Button("1")) { resolutionValue.floatValue = 3; GUI.FocusControl(""); }
 				GUILayout.EndHorizontal();
+				GUI.enabled = initialEnabled;
+			}
+		}
+
+		public static bool isPrefabOverrideComapare = false;
+		public override void OnInspectorGUI() {
+			CustomEditorGUI.lockValue = false;
+			bool defaultEnabled = GUI.enabled;
+
+			if(!defaultEnabled) {
+				isPrefabOverrideComapare = true;
+				EditorApplication.delayCall += () => isPrefabOverrideComapare = false;
 			}
 
-			GUI.enabled = true;
+			serializedObject.Update();
+			guiCustomChanges = false;
 
-			bool changes = serializedObject.ApplyModifiedProperties();
-			if(changes) {
-				foreach(PhotoFrame target in targets) target.updateEditorPreview();
+			if(!EditorSettings.livePreview) EditorGUILayout.HelpBox("To enable live preview toggle: Photo Frames > Live Preview", MessageType.Info);
+
+			bool locked = Utils.Collapse(targets.Cast<PhotoFrame>().Select(pf => pf.bakedData), out _, true);
+			bool doUnlock = false;
+			if(locked) {
+				if(GUILayout.Button("Unlock")) doUnlock = true;
+				GUI.enabled = false;
+			}
+
+			UtilsGUI.AlignedPropertyField(new GUIContent("Frame"), frameType);
+			PhotoPropertyField(out Texture2D samePhoto);
+			EditorGUI.BeginChangeCheck();
+			UtilsGUI.AlignedLeftToggle(new GUIContent("Auto Select Aspect Ratio"), autoSelectAspectRatio, true);
+			bool aspectRatioRealize = (EditorGUI.EndChangeCheck() && autoSelectAspectRatio.boolValue == false);
+			if(!autoSelectAspectRatio.boolValue || (isPrefabOverrideComapare && aspectRatio.prefabOverride)) AspectRatioField();
+
+			UtilsGUI.AlignedSliderAllOptions(new GUIContent("Crop Scale"), cropScale, 0.0001f, 1, 0.0001f, 1);
+			UtilsGUI.AlignedSliderAllOptions(new GUIContent("Crop Offset X"), cropOffsetX, -1, 1, -1, 1);
+			UtilsGUI.AlignedSliderAllOptions(new GUIContent("Crop Offset Y"), cropOffsetY, -1, 1, -1, 1);
+			if(GUILayout.Button("Reset Crop")) {
+				cropScale.floatValue = 1;
+				cropOffsetX.floatValue = 0;
+				cropOffsetY.floatValue = 0;
+				GUI.FocusControl("");
+			}
+
+			ResolutionType resBefore = (ResolutionType)resolutionType.enumValueIndex;
+			UtilsGUI.AlignedPropertyField(new GUIContent("Resolution Type"), resolutionType);
+			ResolutionType resCurrent = (ResolutionType)resolutionType.enumValueIndex;
+			ResolutionControl(samePhoto, resCurrent);
+
+			GUI.enabled = defaultEnabled;
+
+			PhotoFrame[] toRealize = null;
+			if(aspectRatioRealize) toRealize = targets.Cast<PhotoFrame>().Where(pf => pf.autoSelectAspectRatio).ToArray();
+
+			bool changes = serializedObject.ApplyModifiedProperties() || guiCustomChanges;
+
+			if(toRealize != null) {
+				foreach(PhotoFrame pf in toRealize) {
+					float photoAspectRatio = 1;
+					if(pf.photo != null) photoAspectRatio = pf.photo.width / (float)pf.photo.height;
+
+					float frameAspectRatio = photoAspectRatio;
+					int frameIndex = pf.frameType?.findFrame(photoAspectRatio, true, out frameAspectRatio) ?? -1;
+					if(frameIndex != -1 && pf.frameType.getRatio(frameIndex) == frameAspectRatio) pf.aspectRatio = pf.frameType.aspectRatios[frameIndex];
+					else pf.aspectRatio = new Fraction(frameAspectRatio);
+				}
+			}
+
+			if(resCurrent != resBefore && resCurrent == ResolutionType.AbsoluteMajor || resCurrent == ResolutionType.Relative) {
+				bool targetIsPixelCount = resCurrent != ResolutionType.Relative;
+				foreach(PhotoFrame pf in targets) {
+					bool currentIsPixelCount = pf.resolutionValue > 1;
+					if(currentIsPixelCount == targetIsPixelCount) continue;
+					int majorSize = 1024;
+					if(pf.photo) majorSize = Math.Max(pf.photo.width, pf.photo.height);
+					Undo.RecordObject(pf, "Resolution Value");
+					if(targetIsPixelCount) pf.resolutionValue *= majorSize;
+					else pf.resolutionValue /= majorSize;
+				}
+				changes = true;
+			}
+
+			if(defaultEnabled == true && changes && EditorSettings.livePreview) {
+				foreach(PhotoFrame target in targets) target.enableAndUpdatePreview();
 			}
 
 			var photoFrame = (PhotoFrame)target;
-			if(livePreview && targets.Length == 1 && photoFrame.photo != null) {
-				photoFrame.updateResizeTexture();
+			if(EditorSettings.livePreview && targets.Length == 1 && photoFrame.photo != null) {
+				if(!photoFrame.preview) photoFrame.enableAndUpdatePreview();
+				Texture previewTexture = photoFrame.preview ? (Texture)photoFrame.preview.previewTexture : photoFrame.photo;
 
-				photoFrame.getAspectRatios(out float photoAspectRatio, out float frameAspectRatio);
+				photoFrame.getAspectRatios(out float photoAspectRatio, out float frameAspectRatio, out int frameIndex);
 				float cutoutPercent = 1.0f - Mathf.Min(frameAspectRatio, photoAspectRatio) / Mathf.Max(frameAspectRatio, photoAspectRatio);
 				var finalRes = photoFrame.getFinalResolution();
-				float dataSave = (float)(finalRes.x * finalRes.y) / (float)(photoFrame.photo.width * photoFrame.photo.height);
+				float dataSave = (float)(finalRes.x * finalRes.y) / (float)(photoFrame.photoSourceSize.x * photoFrame.photoSourceSize.y);
 
-				GUILayout.Label($"{photoFrame.photo.width}px x {photoFrame.photo.height}px - {photoFrame.photo.name}");
+				GUILayout.Label($"{photoFrame.photoSourceSize.x}px x {photoFrame.photoSourceSize.y}px - {photoFrame.photo.name}");
 				GUILayout.Label($"{finalRes.x}px x {finalRes.y}px final resolution - " + (dataSave * 100f).ToString("0.00") + "% of original - " + (cutoutPercent * 100f).ToString("0.00") + "% cutout");
 				if(photoFrame.frameType != null && photoFrame.frameType.photoFrames.Length != 0) {
 					string frameInfo = new Fraction(frameAspectRatio).ToString().Replace("/", " \u2215 ") + " = " + frameAspectRatio.ToString("0.000");
@@ -244,9 +267,12 @@ namespace codec.PhotoFrame {
 				Rect rect = GUILayoutUtility.GetRect(width, height);
 
 				photoFrame.getCropUV(photoAspectRatio, frameAspectRatio, out Vector2 uvMin, out Vector2 uvMax);
-				DrawImagePreview(rect, photoFrame.resizeTexture, photoAspectRatio, uvMin, uvMax);
+				DrawImagePreview(rect, previewTexture, photoAspectRatio, uvMin, uvMax);
 			}
 
+			GUILayout.Space(EditorGUIUtility.singleLineHeight * 2);
+
+			EditorGUI.showMixedValue = false;
 			EditorGUI.BeginChangeCheck();
 			if(Event.current.type == EventType.MouseUp) isScaleSliderBeingUsed = false;
 			var isMouseDown = Event.current.type == EventType.MouseDown;
@@ -257,7 +283,7 @@ namespace codec.PhotoFrame {
 				+ pf.transform.localScale.z).Sum() / (targets.Length * 3);
 			if(!isScaleSliderBeingUsed) scaleSliderMax = Mathf.Pow(10, Mathf.Ceil(Mathf.Log10(Mathf.Abs(scaleValue) + 0.0001f) + 0.0001f));
 
-			float newScale = CustomEditorGUILayout.SliderAllOptions("Object Scale", scaleValue, 0, scaleSliderMax, float.MinValue, float.MaxValue, 3.321928f);
+			float newScale = UtilsGUI.AlignedSliderAllOptions(new GUIContent("Object Scale"), scaleValue, 0, scaleSliderMax, float.MinValue, float.MaxValue, 3.321928f);
 			if(isMouseDown && Event.current.type == EventType.Used) isScaleSliderBeingUsed = true;
 
 			if(EditorGUI.EndChangeCheck()) {
@@ -272,102 +298,20 @@ namespace codec.PhotoFrame {
 			if(GUILayout.Button("Snap To Wall")) {
 				foreach(PhotoFrame pf in targets) {
 					Undo.RecordObject(pf.transform, "Snap To Wall");
-					pf.snap(pf.transform.rotation * Vector3.back);
+					Utils.SnapGameObject(pf.transform.rotation * Vector3.back, pf.gameObject);
 				}
 			}
 
 			if(GUILayout.Button("Snap Down")) {
 				foreach(PhotoFrame pf in targets) {
 					Undo.RecordObject(pf.transform, "Snap Down");
-					pf.snap(Vector3.down);
+					Utils.SnapGameObject(Vector3.down, pf.gameObject);
 				}
 			}
 
 			if(doUnlock) {
-				foreach(PhotoFrame pf in targets) {
-					pf.unlock();
-					pf.updateEditorPreview();
-				}
+				foreach(PhotoFrame pf in targets) pf.unlock(true);
 			}
-		}
-	}
-
-	public class Fraction {
-		public int n;
-		public int d;
-
-		public Fraction(int _n, int _d) {
-			n = _n;
-			d = _d;
-		}
-
-		public Fraction(double value, double maxError = 0.000001) {
-			int sign = Math.Sign(value);
-			value = Math.Abs(value);
-
-			int baseN = (int)Math.Floor(value);
-			value -= baseN;
-
-			if(value < maxError) {
-				n = sign * baseN;
-				d = 1;
-				return;
-			}
-			else if(1 - maxError < value) {
-				n = sign * (n + 1);
-				d = 1;
-				return;
-			}
-
-			double z = value;
-			int previousDenominator = 0;
-			int denominator = 1;
-			int numerator;
-
-			do {
-				z = 1.0 / (z - (int)z);
-				int temp = denominator;
-				denominator = denominator * (int)z + previousDenominator;
-				previousDenominator = temp;
-				numerator = Convert.ToInt32(value * denominator);
-			}
-			while(Math.Abs(value - (double)numerator / denominator) > maxError && z != (int)z);
-
-			n = sign * (baseN * denominator + numerator);
-			d = denominator;
-
-			////The lower fraction is 0/1
-			//int lower_n = 0;
-			//int lower_d = 1;
-			////The upper fraction is 1/1
-			//int upper_n = 1;
-			//int upper_d = 1;
-
-			//while(true) {
-			//	//The middle fraction is (lower_n + upper_n) / (lower_d + upper_d)
-			//	int middle_n = lower_n + upper_n;
-			//	int middle_d = lower_d + upper_d;
-			//	if(middle_d * (value + maxError) < middle_n) { //If x + error < middle
-			//		//middle is our new upper
-			//		upper_n = middle_n;
-			//		upper_d = middle_d;
-			//	}
-			//	else if(middle_n < (value - maxError) * middle_d) { //Else If middle < x - error
-			//		//middle is our new lower
-			//		lower_n = middle_n;
-			//		lower_d = middle_d;
-			//	}
-			//	//Else middle is our best fraction
-			//	else {
-			//		n = baseN * middle_d + middle_n;
-			//		d = middle_d;
-			//		return;
-			//	}
-			//}
-		}
-
-		public override string ToString() {
-			return $"{n}/{d}";
 		}
 	}
 }

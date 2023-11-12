@@ -1,5 +1,8 @@
+using codec.PhotoFrame;
+using codec;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using UnityEditor;
@@ -7,52 +10,30 @@ using UnityEditor.Experimental.SceneManagement;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using Unity.Burst.CompilerServices;
 
 namespace codec.PhotoFrame {
 	[InitializeOnLoad]
 	public class ManagerWindow : EditorWindow {
-		public const string badData = "Misformatted Data";
-		public const string debugEditorPref = "wtf.codec.photo-frame-manager.debug";
-		public const string livePreviewEditorPref = "wtf.codec.photo-frame-manager.livePreview";
-
 		public int tabSelected;
 		public Vector2 scrollPosition;
-		public Vector2 debugScroll;
+		public Vector2 debugScrollPosition;
+		public bool sceneMainDropdown = true;
+		public bool sceneAdvancedDropdown = false;
+		public bool sceneTextureDropdown = true;
 
 		static ManagerWindow() {
 			EditorApplication.delayCall += () => {
-				bool livePreview = EditorPrefs.GetBool(livePreviewEditorPref, true);
-				Menu.SetChecked("Photo Frames/Live Preview", livePreview);
+				Menu.SetChecked("Photo Frames/Live Preview", EditorSettings.livePreview);
 			};
 		}
 
-		[MenuItem("Photo Frames/Window")]
+		[MenuItem("Photo Frames/Window", false, priority = 1)]
 		[MenuItem("Window/Photo Frames")]
 		public static void OpenWindow() {
-			ManagerWindow wnd = GetWindow<ManagerWindow>();
-			wnd.titleContent = new GUIContent("Photo Frames");
-			wnd.minSize = new Vector2(250, 250);
-		}
-
-		[MenuItem("Assets/Add Images As Photo Frames")]
-		public static void AddImagesAsPhotoFrames() {
-			PrefabStage prefabStage = PrefabStageUtility.GetCurrentPrefabStage();
-
-			foreach(var obj in Selection.objects) {
-				if(!(obj is Texture2D)) continue;
-
-				PhotoFrame photoFrame = AddPhotoFrame().GetComponent<PhotoFrame>();
-
-				Undo.RegisterCreatedObjectUndo(photoFrame.gameObject, "Add Images As Photo Frames");
-
-				photoFrame.photo = obj as Texture2D;
-
-				if(prefabStage != null) {
-					GameObjectUtility.SetParentAndAlign(photoFrame.gameObject, prefabStage.prefabContentsRoot);
-				}
-
-				photoFrame.updateEditorPreview();
-			}
+			ManagerWindow window = GetWindow<ManagerWindow>();
+			window.titleContent = new GUIContent("Photo Frames");
+			window.minSize = new Vector2(250, 250);
 		}
 
 		[MenuItem("Assets/Add Images As Photo Frames", true)]
@@ -63,17 +44,30 @@ namespace codec.PhotoFrame {
 			return false;
 		}
 
-		public static GameObject AddPhotoFrame() {
-			GameObject photoObject = new GameObject("Photo Frame", typeof(PhotoFrame));
-			var iconContent = EditorGUIUtility.IconContent("sv_label_0");
-			var setIcon = typeof(EditorGUIUtility).GetMethod("SetIconForObject", BindingFlags.Static | BindingFlags.NonPublic);
-			setIcon.Invoke(null, new object[] { photoObject, (Texture2D)iconContent.image });
-			return photoObject;
+		[MenuItem("Assets/Add Images As Photo Frames")]
+		public static void AddImagesAsPhotoFrames() {
+			PrefabStage prefabStage = PrefabStageUtility.GetCurrentPrefabStage();
+			List<GameObject> createdObjs = new List<GameObject>();
+
+			foreach(var obj in Selection.objects) {
+				if(obj is Texture2D photo) {
+					PhotoFrame photoFrame = PhotoFrame.Create();
+					Undo.RegisterCreatedObjectUndo(photoFrame.gameObject, "Add Images As Photo Frames");
+					photoFrame.photo = photo;
+					if(prefabStage != null) {
+						GameObjectUtility.SetParentAndAlign(photoFrame.gameObject, prefabStage.prefabContentsRoot);
+					}
+					if(EditorSettings.livePreview) photoFrame.enableAndUpdatePreview();
+					createdObjs.Append(photoFrame.gameObject);
+				}
+			}
+
+			Selection.objects = createdObjs.ToArray();
 		}
 
 		[MenuItem("GameObject/Photo Frame", false, 10)]
 		public static void AddPhoto(MenuCommand menuCommand) {
-			GameObject photoObject = AddPhotoFrame();
+			GameObject photoObject = PhotoFrame.Create().gameObject;
 
 			if(menuCommand.context) GameObjectUtility.SetParentAndAlign(photoObject, menuCommand.context as GameObject);
 			else {
@@ -86,80 +80,47 @@ namespace codec.PhotoFrame {
 			Selection.activeObject = photoObject;
 		}
 
-		[MenuItem("Photo Frames/Bake Photo Frames")]
+		//[MenuItem("Photo Frames/Test")]
+		//public static void Test() {
+		//}
+
+		[MenuItem("Photo Frames/Bake Photo Frames", priority = 3)]
 		public static void BakeTextures() {
-			var settings = SceneSettings.active;
-			if(settings == null) {
-				Scene curScene = SceneManager.GetActiveScene();
-				SceneSettings.ActiveSceneChanged(curScene, curScene);
-				settings = SceneSettings.active;
-			}
-
-			EditorUtility.SetDirty(settings);
+			SceneSettings.AssureActiveNotMissing();
 			Scene activeScene = EditorSceneManager.GetActiveScene();
-
-			try {
-				AssetDatabase.StartAssetEditing();
-
-				PhotoFrame[] photoFrames = Resources.FindObjectsOfTypeAll<PhotoFrame>().Where(pf => pf.gameObject.scene == activeScene && pf.photo).ToArray();
-				foreach(var pf in photoFrames) pf.unlock();
-				var lostObjs = Resources.FindObjectsOfTypeAll<MarkTypeBaked>().Where(t => t.gameObject.scene == activeScene);
-				foreach(var lostObj in lostObjs) {
-					Transform parent = lostObj.transform.parent;
-					DestroyImmediate(lostObj);
-					PrefabUtility.RecordPrefabInstancePropertyModifications(parent);
-				}
-
-				PhotoFrameBaker.Bake(photoFrames, settings, EditorPrefs.GetBool(debugEditorPref, false), (string[] paths) => {
-					AssetDatabase.StopAssetEditing();
-					foreach(var path in paths) AssetDatabase.ImportAsset(path);
-					AssetDatabase.StartAssetEditing();
-				});
-
-				foreach(var pf in photoFrames) {
-					PrefabUtility.RecordPrefabInstancePropertyModifications(pf);
-				}
+			if(activeScene.isDirty && !EditorUtility.DisplayDialog("Bake Photo Frames", "Baking will save the scene. Okay?", "Bake and Save", "Cancel")) {
+				return;
 			}
-			catch(Exception e) {
-				Debug.LogException(e);
-			}
-			finally {
-				AssetDatabase.StopAssetEditing();
-				EditorSceneManager.SaveScene(activeScene);
 
-			}
+			EditorUtility.SetDirty(SceneSettings.active);
+
+			PhotoFrame[] photoFrames = Utils.LoadedScenes_FindComponentsOfType<PhotoFrame>(true).Where(pf => pf.photo).ToArray();
+
+			PhotoFrameBaker.Bake(photoFrames, SceneSettings.active, EditorSettings.debug);
+
+			EditorSceneManager.SaveScene(activeScene);
 		}
 
-		[MenuItem("Photo Frames/Delete Bake")]
+		[MenuItem("Photo Frames/Delete Bake", true)]
+		public static bool DeleteTexturesValidate() {
+			SceneSettings.AssureActiveNotMissing();
+			return SceneSettings.active.hasBake;
+		}
+
+		[MenuItem("Photo Frames/Delete Bake", priority = 4)]
 		public static void DeleteTextures() {
-			var settings = SceneSettings.active;
-			if(settings == null) {
-				Scene curScene = SceneManager.GetActiveScene();
-				SceneSettings.ActiveSceneChanged(curScene, curScene);
-				settings = SceneSettings.active;
+			SceneSettings.AssureActiveNotMissing();
+			Scene activeScene = EditorSceneManager.GetActiveScene();
+			if(activeScene.isDirty && !EditorUtility.DisplayDialog("Delete Bake", "Deleting a bake will save the scene. Okay?", "Delete Bake and Save", "Cancel")) {
+				return;
 			}
 
-			EditorUtility.SetDirty(settings);
-			Scene activeScene = EditorSceneManager.GetActiveScene();
+			EditorUtility.SetDirty(SceneSettings.active);
 
 			try {
 				AssetDatabase.StartAssetEditing();
 
-				var photoFrames = Resources.FindObjectsOfTypeAll<PhotoFrame>().Where(pf => pf.gameObject.scene == activeScene);
-				foreach(var pf in photoFrames) {
-					pf.unlock();
-					pf.updateEditorPreview();
-					PrefabUtility.RecordPrefabInstancePropertyModifications(pf);
-				}
-
-				settings.DeleteTexturesAndMaterials();
-
-				var lostObjs = Resources.FindObjectsOfTypeAll<MarkTypeBaked>().Where(t => t.gameObject.scene == activeScene);
-				foreach(var lostObj in lostObjs) {
-					Transform parent = lostObj.transform.parent;
-					DestroyImmediate(lostObj);
-					PrefabUtility.RecordPrefabInstancePropertyModifications(parent);
-				}
+				SceneSettings.active.deleteBake(EditorSettings.livePreview);
 			}
 			catch(Exception e) {
 				Debug.LogException(e);
@@ -170,17 +131,15 @@ namespace codec.PhotoFrame {
 			}
 		}
 
-		[MenuItem("Photo Frames/Live Preview")]
-		private static void ToggleAction() {
-			bool livePreview = !EditorPrefs.GetBool(livePreviewEditorPref, true);
-			if(livePreview) EditorPrefs.DeleteKey(livePreviewEditorPref);
-			else EditorPrefs.SetBool(livePreviewEditorPref, false);
-			Menu.SetChecked("Photo Frames/Live Preview", livePreview);
+		[MenuItem("Photo Frames/Live Preview", priority = 2)]
+		private static void ToggleLivePreview() {
+			bool livePreview = EditorSettings.livePreview = !EditorSettings.livePreview;
 
+			Menu.SetChecked("Photo Frames/Live Preview", livePreview);
 			Scene activeScene = SceneManager.GetActiveScene();
-			foreach(var photoFrame in Resources.FindObjectsOfTypeAll<PhotoFrame>().Where(pf => pf.gameObject.scene == activeScene)) {
-				if(livePreview) photoFrame.updateEditorPreview();
-				else photoFrame.turnOffEditorPreview();
+			foreach(var photoFrame in Utils.LoadedScenes_FindComponentsOfType<PhotoFrame>()) {
+				if(livePreview) photoFrame.enableAndUpdatePreview();
+				else photoFrame.disablePreview();
 			}
 		}
 
@@ -189,28 +148,112 @@ namespace codec.PhotoFrame {
 			rect.width -= EditorGUIUtility.singleLineHeight * 0.5f;
 			rect.x += EditorGUIUtility.singleLineHeight * 0.25f;
 			rect.width /= 2;
-			if(GUI.Button(rect, "Bake Photo Frames")) BakeTextures();
+			if(!SceneSettings.active.hasBake && GUI.Button(rect, "Bake Photo Frames")) BakeTextures();
+			if(SceneSettings.active.hasBake && GUI.Button(rect, "Rebake Photo Frames")) BakeTextures();
 			rect.x += rect.width;
+			GUI.enabled = SceneSettings.active.hasBake;
 			if(GUI.Button(rect, "Delete Bake")) DeleteTextures();
+			GUI.enabled = true;
+		}
+
+		bool isScaleSliderBeingUsed = false;
+		float scaleSliderMax = 1;
+		public void mainSettingsDropdown() {
+			var textureSizes = (new HashSet<int> { 64, 128, 256, 512, 1024, 2048, 4096, 8192, SceneSettings.active.textureSize }).ToArray();
+			Array.Sort(textureSizes);
+
+			UtilsGUI.AlignedIntPopup(new GUIContent("Baked Texture Size", "Target size of the baked textures. Some texture might be smaller to reduce size"), SceneSettings.active.s_textureSize, textureSizes.Select(n => new GUIContent(n.ToString())).ToArray(), textureSizes);
+			UtilsGUI.AlignedIntSliderAllOptions(new GUIContent("Photo Margin", "Extra colored area around photos to prevent texture bleeding; measured in pixels"), SceneSettings.active.s_margin, 0, (int)(SceneSettings.active.textureSize * 0.125f));
+			UtilsGUI.AlignedLeftToggle(new GUIContent("Scale Photo Margin", "Scales the photo margin down when baked textures are below the specified baked texture size"), SceneSettings.active.s_scaleMargin, true);
+			UtilsGUI.AlignedLeftToggle(new GUIContent("Join Duplicate Photos", "Joins duplicate photos in baked texture"), SceneSettings.active.s_joinDuplicates, true);
+
+			GUILayout.Space(EditorGUIUtility.singleLineHeight);
+
+			EditorGUI.BeginChangeCheck();
+			UtilsGUI.AlignedLeftToggle(new GUIContent("Scale Resolution By Size", "Scales the resolution of photos based on their scale. Photos with resolution full are skipped"), SceneSettings.active.s_scaleResolutionBySize, true);
+			if(SceneSettings.active.s_scaleResolutionBySize.boolValue) {
+				EditorGUI.indentLevel++;
+				if(Event.current.type == EventType.MouseUp) isScaleSliderBeingUsed = false;
+				var isMouseDown = Event.current.type == EventType.MouseDown;
+				float min = SceneSettings.active.s_scaleResMin.floatValue, max = SceneSettings.active.s_scaleResMax.floatValue;
+
+				if(!isScaleSliderBeingUsed) scaleSliderMax = Mathf.Pow(2, Mathf.Ceil(Mathf.Log(Mathf.Abs(max) + 0.0001f, 2) + 0.0001f));
+
+				UtilsGUI.AlignedMinMaxSlider(new GUIContent("Scale Resolution Values", "Resolution starts being lowered at the maximum value and stops at the minimum value. Photos with resolution full are skipped"), ref min, ref max, 0, scaleSliderMax, true);
+				if(isMouseDown && Event.current.type == EventType.Used) isScaleSliderBeingUsed = true;
+				SceneSettings.active.s_scaleResMin.floatValue = min;
+				SceneSettings.active.s_scaleResMax.floatValue = max;
+				EditorGUI.indentLevel--;
+			}
+
+			SceneSettings.active.s_resolutionMaxMajorSize.intValue = UtilsGUI.ResolutionPicker(new GUIContent("Resolution Max Major Size", "Photo frames set to \"Use Scene Settings\" will use this resolution value"), SceneSettings.active.s_resolutionMaxMajorSize.intValue, 4096);
+			if(EditorGUI.EndChangeCheck()) PhotoFrame.UpdateAll(false);
+		}
+
+		public void advancedSettingsDropdown() {
+			UtilsGUI.AlignedSliderAllOptions(new GUIContent("Texture Fit",
+				"Sorting prioritization (spacial sorting for better mipmap streaming vs fewer textures)\n"
+				+ "0 - sorted for better mipmap streaming\n1 - sorted for fewer textures"), SceneSettings.active.s_textureFit, 0, 1, 0, float.MaxValue);
+			UtilsGUI.AlignedSliderAllOptions(new GUIContent("Estimated Pack Efficiency", "Expected packing efficiency used when sorting"), SceneSettings.active.s_estimatedPackEfficiency, 0.1f, 1, 0, 1);
+			UtilsGUI.AlignedSliderAllOptions(new GUIContent("Skyline Max Spread", "Parameter for the packing algorithm"), SceneSettings.active.s_skylineMaxSpread, 0, 1, 0, 1);
+			UtilsGUI.AlignedSliderAllOptions(new GUIContent("Overhang Weight", "Parameter for the packing algorithm"), SceneSettings.active.s_overhangWeight, 0, 100);
+			UtilsGUI.AlignedSliderAllOptions(new GUIContent("Neighborhood Waste Weight", "Parameter for the packing algorithm"), SceneSettings.active.s_neighborhoodWasteWeight, 0, 100);
+			UtilsGUI.AlignedSliderAllOptions(new GUIContent("Top Waste Weight", "Parameter for the packing algorithm"), SceneSettings.active.s_topWasteWeight, 0, 100);
+		}
+
+		public void texturSettingsDropdown() {
+			UtilsGUI.AlignedLeftToggle(new GUIContent("Mipmaps"), SceneSettings.active.s_tex_generateMipmaps, true);
+			if(SceneSettings.active.s_tex_generateMipmaps.boolValue) {
+				EditorGUI.indentLevel++;
+				UtilsGUI.AlignedLeftToggle(new GUIContent("Mipmap Streaming"), SceneSettings.active.s_tex_mipmapStreaming, true);
+				if(SceneSettings.active.s_tex_mipmapStreaming.boolValue) {
+					EditorGUI.indentLevel++;
+					UtilsGUI.AlignedPropertyField(new GUIContent("Priority"), SceneSettings.active.s_tex_mipmapPriority);
+					EditorGUI.indentLevel--;
+				}
+				UtilsGUI.AlignedPropertyField(new GUIContent("Preserve Coverage"), SceneSettings.active.s_tex_preserveCoverage);
+				UtilsGUI.AlignedPropertyField(new GUIContent("Filtering"), SceneSettings.active.s_tex_mipmapFiltering);
+				EditorGUI.indentLevel--;
+				GUILayout.Space(EditorGUIUtility.singleLineHeight);
+			}
+			UtilsGUI.AlignedPropertyField(new GUIContent("Filter Mode"), SceneSettings.active.s_tex_filterMode);
+			UtilsGUI.AlignedIntSliderAllOptions(new GUIContent("Aniso Level"), SceneSettings.active.s_tex_anisoLevel, 0, 16, 0, 16);
+			GUILayout.Space(EditorGUIUtility.singleLineHeight);
+			SceneSettings.active.s_tex_textureCompression.enumValueIndex = UtilsGUI.AlignedIntPopup(new GUIContent("Compression"), SceneSettings.active.s_tex_textureCompression.enumValueIndex, new GUIContent[] { new GUIContent("None"), new GUIContent("Low Quality"), new GUIContent("Normal Quality"), new GUIContent("High Quality") }, new int[] { (int)TextureImporterCompression.Uncompressed, (int)TextureImporterCompression.CompressedLQ, (int)TextureImporterCompression.Compressed, (int)TextureImporterCompression.CompressedHQ });
+			UtilsGUI.AlignedLeftToggle(new GUIContent("Use Crunch Compression"), SceneSettings.active.s_tex_crunchedCompression, true);
+			if(SceneSettings.active.s_tex_crunchedCompression.boolValue) UtilsGUI.AlignedIntSliderAllOptions(new GUIContent("Compression Quality"), SceneSettings.active.s_tex_crunchedCompressionQuality, 0, 100, 0, 100);
 		}
 
 		public void tab_SceneSettingsGUI() {
-			scrollPosition = GUILayout.BeginScrollView(scrollPosition, false, false, GUIStyle.none, GUI.skin.verticalScrollbar);
-			scrollPosition.x = 0;
+			scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
 
-			var textureSizes = (new HashSet<int> { 64, 128, 256, 512, 1024, 2048, 4096, 8192, SceneSettings.active.textureSize }).ToArray();
-			System.Array.Sort(textureSizes);
+			sceneMainDropdown = EditorGUILayout.BeginFoldoutHeaderGroup(sceneMainDropdown, "Bake Settings");
+			EditorGUILayout.EndFoldoutHeaderGroup();
+			if(sceneMainDropdown) {
+				mainSettingsDropdown();
+				GUILayout.Space(EditorGUIUtility.singleLineHeight);
+			}
 
-			EditorGUILayout.IntPopup(SceneSettings.active.s_textureSize, textureSizes.Select(n => new GUIContent(n.ToString())).ToArray(), textureSizes, new GUIContent("Baked Texture Size", "Target size of the baked textures. Some texture might be smaller to reduce size"));
-			EditorGUILayout.IntSlider(SceneSettings.active.s_margin, 0, (int)(SceneSettings.active.textureSize * 0.125f), new GUIContent("Photo Margin", "Extra colored area around photos to prevent texture bleeding; measured in pixels"));
+			sceneAdvancedDropdown = EditorGUILayout.BeginFoldoutHeaderGroup(sceneAdvancedDropdown, "Advanced Settings");
+			EditorGUILayout.EndFoldoutHeaderGroup();
+			if(sceneAdvancedDropdown) {
+				advancedSettingsDropdown();
+				GUILayout.Space(EditorGUIUtility.singleLineHeight);
+			}
 
-			CustomEditorGUILayout.SliderAllOptions(new GUIContent("Texture Fit",
-				"Sorting prioritization (spacial sorting for better mipmap streaming vs fewer textures)\n"
-				+ "0 - sorted for better mipmap streaming\n1 - sorted for fewer textures"), SceneSettings.active.s_textureFit, 0, 1, 0, float.MaxValue);
+			sceneTextureDropdown = EditorGUILayout.BeginFoldoutHeaderGroup(sceneTextureDropdown, "Texture Settings", null, (rect) => {
+				var menu = new GenericMenu();
+				if(!SceneSettings.active.hasBake) menu.AddDisabledItem(new GUIContent("Edit baked texture settings"));
+				else menu.AddItem(new GUIContent("Edit baked texture settings"), false, () => {
+					Selection.objects = SceneSettings.active.textures;
+					EditorWindow.FocusWindowIfItsOpen(typeof(UnityEditor.Editor).Assembly.GetType("UnityEditor.InspectorWindow"));
+				});
+				menu.DropDown(rect);
+			});
+			EditorGUILayout.EndFoldoutHeaderGroup();
+			if(sceneTextureDropdown) texturSettingsDropdown();
 
-			EditorGUILayout.Slider(SceneSettings.active.s_skylineMaxSpread, 0, 1, new GUIContent("Skyline Max Spread", "Parameter for the packing algorithm"));
-
-			GUILayout.EndScrollView();
+			EditorGUILayout.EndScrollView();
 			GUILayout.Space(EditorGUIUtility.singleLineHeight);
 			bakeAndDeleteButtonsGUI();
 			GUILayout.FlexibleSpace();
@@ -219,19 +262,51 @@ namespace codec.PhotoFrame {
 
 		public void tab_PhotosGUI() {
 			Scene activeScene = SceneManager.GetActiveScene();
-			PhotoFrame[] photoFrames = Resources.FindObjectsOfTypeAll<PhotoFrame>().Where(pf => pf.gameObject.scene == activeScene).ToArray();
+			PhotoFrame[] photoFrames = Utils.LoadedScenes_FindComponentsOfType<PhotoFrame>(true).ToArray();
 
 			GUILayout.Label($"{photoFrames.Length} Photos");
 
-			scrollPosition = GUILayout.BeginScrollView(scrollPosition, false, false, GUIStyle.none, GUI.skin.verticalScrollbar);
+			scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition, false, false, GUIStyle.none, GUI.skin.verticalScrollbar, GUI.skin.scrollView);
 			scrollPosition.x = 0;
-			Rect rect = GUILayoutUtility.GetRect(0, EditorGUIUtility.currentViewWidth * Mathf.Ceil(photoFrames.Length / 3.0f) / 3.0f, GUILayout.ExpandWidth(true));
-			int selection = GUI.SelectionGrid(rect, -1, photoFrames.Select(pf => pf.photo).ToArray(), 3);
-			if(selection != -1) {
-				Selection.activeGameObject = photoFrames[selection].gameObject;
-				EditorGUIUtility.PingObject(Selection.activeGameObject);
+			float screenSize = Screen.width - EditorGUIUtility.singleLineHeight * 2f;
+			int count = (int)Math.Max(Math.Floor(screenSize / 150), 1);
+			float size = (screenSize - GUI.skin.button.margin.left * (count - 1)) / count;
+			EditorGUILayout.BeginHorizontal();
+			GUILayout.Space(EditorGUIUtility.singleLineHeight);
+			GUILayout.BeginVertical();
+			for(int i = 0; i < photoFrames.Length;) {
+				GUILayout.BeginHorizontal();
+				float imageHeight = 0;
+				for(int tempI = i, a = 0; a < count && tempI < photoFrames.Length; a++, tempI++) {
+					if(photoFrames[tempI].photo == null) continue;
+					float aspectRatio = Utils.ConvertRatio(photoFrames[tempI].photoUseSize);
+					imageHeight = Mathf.Max(imageHeight, (size - EditorGUIUtility.singleLineHeight * 0.5f) / Math.Max(aspectRatio, 1));
+				}
+				for(int a = 0; a < count && i < photoFrames.Length; a++, i++) {
+					Rect rect = GUILayoutUtility.GetRect(size, imageHeight + EditorGUIUtility.singleLineHeight * 2.75f, GUI.skin.button, GUILayout.ExpandWidth(false));
+					if(GUI.Button(rect, "")) {
+						Selection.activeGameObject = photoFrames[i].gameObject;
+						EditorGUIUtility.PingObject(Selection.activeGameObject);
+					}
+					rect.x += EditorGUIUtility.singleLineHeight * 0.25f;
+					rect.y += EditorGUIUtility.singleLineHeight * 0.25f;
+					rect.width -= EditorGUIUtility.singleLineHeight * 0.5f;
+					rect.height -= EditorGUIUtility.singleLineHeight * 0.5f;
+					float rectHeight = rect.height;
+					rect.height = EditorGUIUtility.singleLineHeight;
+					GUI.Label(rect, new GUIContent(photoFrames[i].name));
+					rect.y += EditorGUIUtility.singleLineHeight;
+					GUI.Label(rect, new GUIContent(photoFrames[i].photo == null ? "--" : Path.GetFileName(AssetDatabase.GetAssetPath(photoFrames[i].photo))));
+					rect.y += EditorGUIUtility.singleLineHeight * 1.25f;
+					rect.height = imageHeight;
+					if(photoFrames[i].photo != null) GUI.Box(rect, photoFrames[i].photo, GUIStyle.none);
+				}
+				GUILayout.EndHorizontal();
 			}
-			GUILayout.EndScrollView();
+			GUILayout.EndVertical();
+			GUILayout.Space(EditorGUIUtility.singleLineHeight);
+			GUILayout.EndHorizontal();
+			EditorGUILayout.EndScrollView();
 		}
 
 		public void tab_BakedTexturesGUI() {
@@ -245,7 +320,7 @@ namespace codec.PhotoFrame {
 
 			if(settings.textures.Length > 0) {
 				GUILayout.Label($"{settings.textures.Length} Textures");
-				scrollPosition = GUILayout.BeginScrollView(scrollPosition, false, false, GUIStyle.none, GUI.skin.verticalScrollbar);
+				scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition, false, false, GUIStyle.none, GUI.skin.verticalScrollbar, GUI.skin.scrollView);
 				scrollPosition.x = 0;
 				for(int i = 0; i < settings.textures.Length; i++) {
 					if(settings.textures[i] == null) continue;
@@ -263,7 +338,7 @@ namespace codec.PhotoFrame {
 					EditorGUILayout.EndHorizontal();
 					float width = EditorGUIUtility.currentViewWidth - size - EditorGUIUtility.singleLineHeight * 3;
 					Rect rect = GUILayoutUtility.GetRect(0, width * Mathf.Ceil(settings.pfCounts[i] / 3.0f) / 3.0f, GUILayout.ExpandWidth(true));
-					int selection = GUI.SelectionGrid(rect, -1, settings.photoFrames.Skip(pfI).Take(settings.pfCounts[i]).Select(pf => pf.photo).ToArray(), 3, style);
+					int selection = GUI.SelectionGrid(rect, -1, settings.photoFrames.Skip(pfI).Take(settings.pfCounts[i]).Where(pf => pf?.photo).Select(pf => pf.photo).ToArray(), 3, style);
 					if(selection != -1) {
 						Selection.activeGameObject = settings.photoFrames[pfI + selection].gameObject;
 						EditorGUIUtility.PingObject(Selection.activeGameObject);
@@ -274,7 +349,7 @@ namespace codec.PhotoFrame {
 
 					pfI += settings.pfCounts[i];
 				}
-				GUILayout.EndScrollView();
+				EditorGUILayout.EndScrollView();
 			}
 			else {
 				GUILayout.Label("No Textures");
@@ -294,7 +369,11 @@ namespace codec.PhotoFrame {
 
 		public void tab_DebugGUI() {
 			bakeAndDeleteButtonsGUI();
-			debugScroll = GUILayout.BeginScrollView(debugScroll);
+			if(GUILayout.Button("Show scene settings")) {
+				Selection.activeGameObject = SceneSettings.active.gameObject;
+				EditorWindow.FocusWindowIfItsOpen(typeof(UnityEditor.Editor).Assembly.GetType("UnityEditor.InspectorWindow"));
+			}
+			debugScrollPosition = EditorGUILayout.BeginScrollView(debugScrollPosition);
 			if(TextureBaker.d_cycleCount == 0 && TextureBaker.d_log.Count == 0) GUILayout.Label("No Debug Information Saved");
 			else {
 				GUIStyle horizontalLine;
@@ -318,44 +397,33 @@ namespace codec.PhotoFrame {
 
 				GUI.skin.font = saveFont;
 			}
-			GUILayout.EndScrollView();
+			EditorGUILayout.EndScrollView();
 		}
 
 		public void OnGUI() {
-			if(SceneSettings.active == null) {
-				Scene curScene = SceneManager.GetActiveScene();
-				SceneSettings.ActiveSceneChanged(curScene, curScene);
-			}
+			CustomEditorGUI.lockValue = false;
+			SceneSettings.AssureActiveNotMissing();
 
-			EditorGUIUtility.labelWidth = 200;
+			EditorGUIUtility.labelWidth = Screen.width * 0.35f;
 			SceneSettings.active.serializedObject.Update();
 
 			GUILayout.BeginHorizontal();
 			GUILayout.FlexibleSpace();
-			GUIStyle iconButtonStyle = GUI.skin.FindStyle("IconButton") ?? EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector).FindStyle("IconButton");
-			GUIContent content = new GUIContent(EditorGUIUtility.Load("icons/d__Popup.png") as Texture2D);
-			if(EditorGUILayout.DropdownButton(content, FocusType.Passive, iconButtonStyle)) {
+			if(UtilsGUI.OptionsDropDown(FocusType.Passive)) {
 				GenericMenu menu = new GenericMenu();
 				menu.AddItem(new GUIContent("Reset"), false, () => {
-					SceneSettings.active.serializedObject.Update();
-					SceneSettings.active.s_textureSize.intValue = 4096;
-					SceneSettings.active.s_margin.intValue = 32;
-					SceneSettings.active.s_textureFit.floatValue = 0.15f;
-					SceneSettings.active.s_skylineMaxSpread.floatValue = 0.25f;
-					SceneSettings.active.serializedObject.ApplyModifiedProperties();
+					Undo.RecordObject(SceneSettings.active, "Reset");
+					SceneSettings.active.Reset();
 				});
-				menu.AddItem(new GUIContent("Debug"), EditorPrefs.GetBool(debugEditorPref, false), () => {
-					bool value = EditorPrefs.GetBool(debugEditorPref, false);
-					if(value) EditorPrefs.DeleteKey(debugEditorPref);
-					else EditorPrefs.SetBool(debugEditorPref, true);
-				});
+				menu.AddItem(new GUIContent("Right Aligned Fields"), EditorSettings.rightAlignedFields, () => EditorSettings.rightAlignedFields ^= true);
+				menu.AddItem(new GUIContent("Debug"), EditorSettings.debug, () => EditorSettings.debug ^= true);
 				menu.ShowAsContext();
 			}
 			GUILayout.EndHorizontal();
 			GUILayout.BeginHorizontal();
 			GUILayout.FlexibleSpace();
 			var tabs = new List<string> { " Settings ", " Photos ", " Baked Textures " };
-			if(EditorPrefs.GetBool(debugEditorPref, false)) tabs.Add(" Debug ");
+			if(EditorSettings.debug) tabs.Add(" Debug ");
 			tabSelected = GUILayout.Toolbar(tabSelected, tabs.ToArray(), GUILayout.Height(EditorGUIUtility.singleLineHeight * 1.25f));
 			GUILayout.FlexibleSpace();
 			GUILayout.EndHorizontal();
@@ -367,6 +435,13 @@ namespace codec.PhotoFrame {
 			if(tabSelected == 3) tab_DebugGUI();
 
 			SceneSettings.active.serializedObject.ApplyModifiedProperties();
+
+			if(Event.current.type == EventType.MouseDown
+			&& 0 < Event.current.mousePosition.x && Event.current.mousePosition.x < Screen.width
+			&& 0 < Event.current.mousePosition.y && Event.current.mousePosition.y < Screen.height) {
+				Event.current.Use();
+				GUI.FocusControl("");
+			}
 		}
 	}
 }

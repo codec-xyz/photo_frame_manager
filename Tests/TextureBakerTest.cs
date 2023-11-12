@@ -453,10 +453,10 @@ namespace codec.PhotoFrame.Tests {
 			});
 			AssertSkyline();
 
-			pack.skyline_addRect(1, 5, 5);
+			pack.skyline_addRect(1, 6, 5);
 
 			//                             1  2  3  4  5  6  7  8  9 10
-			Assert.AreEqual(new ushort[] { 6, 0, 0, 6, 6, 1, 0, 0, 0, 1 }, pack.skylineY.ToArray());
+			Assert.AreEqual(new ushort[] { 6, 0, 0, 6, 7, 1, 0, 0, 0, 1 }, pack.skylineY.ToArray());
 			Assert.AreEqual(new ushort[] { 3, 0, 0, 3, 0, 4, 0, 0, 0, 4 }, pack.skylineXMove.ToArray());
 
 			AssertSkyline();
@@ -474,8 +474,8 @@ namespace codec.PhotoFrame.Tests {
 			pack.skyline_addRect(3, 2, -6);
 
 			//                             1  2  3  4  5  6  7  8  9 10
-			Assert.AreEqual(new ushort[] { 5, 0, 5, 5, 3, 5, 4, 0, 0, 4 }, pack.skylineY.ToArray());
-			Assert.AreEqual(new ushort[] { 2, 0, 2, 2, 1, 2, 3, 0, 0, 3 }, pack.skylineXMove.ToArray());
+			Assert.AreEqual(new ushort[] { 5, 0, 5, 0, 3, 5, 4, 0, 0, 4 }, pack.skylineY.ToArray());
+			Assert.AreEqual(new ushort[] { 5, 0, 2, 0, 1, 5, 3, 0, 0, 3 }, pack.skylineXMove.ToArray());
 
 			AssertSkyline();
 		}
@@ -512,6 +512,132 @@ namespace codec.PhotoFrame.Tests {
 			//                             1  2  3  4  5  6  7  8  9 10
 			Assert.AreEqual(new ushort[] { 5, 0, 5, 0, 3, 3, 6, 0, 0, 6 }, pack.skylineY.ToArray());
 			Assert.AreEqual(new ushort[] { 2, 0, 2, 0, 1, 1, 3, 0, 0, 3 }, pack.skylineXMove.ToArray());
+
+			AssertSkyline();
+		}
+
+		[Test]
+		public void TextureBaker_PackJob_skyline_addRect_009_Passes() {
+			setSkyline(new ushort[] {
+			//  1  2  3  4  5  6  7  8  9 10
+				6, 0, 0, 6, 1, 0, 0, 0, 0, 1,
+				3, 0, 0, 3, 5, 0, 0, 0, 0, 5,
+			});
+			AssertSkyline();
+
+			pack.skyline_addRect(1, 5, 5);
+
+			//                             1  2  3  4  5  6  7  8  9 10
+			Assert.AreEqual(new ushort[] { 6, 0, 0, 6, 6, 1, 0, 0, 0, 1 }, pack.skylineY.ToArray());
+			Assert.AreEqual(new ushort[] { 4, 0, 0, 3, 4, 4, 0, 0, 0, 4 }, pack.skylineXMove.ToArray());
+
+			AssertSkyline();
+		}
+
+		[Test]
+		public void TextureBaker_PackJob_skyline_addRect_010_Passes() {
+			setSkyline(new ushort[] {
+			//  1  2  3  4  5  6  7  8  9 10
+				5, 0, 5, 3, 0, 3, 4, 0, 0, 4,
+				2, 0, 2, 2, 0, 2, 3, 0, 0, 3,
+			});
+			AssertSkyline();
+
+			pack.skyline_addRect(3, 2, 4);
+
+			//                             1  2  3  4  5  6  7  8  9 10
+			Assert.AreEqual(new ushort[] { 5, 0, 5, 3, 0, 5, 4, 0, 0, 4 }, pack.skylineY.ToArray());
+			Assert.AreEqual(new ushort[] { 5, 0, 2, 2, 0, 5, 3, 0, 0, 3 }, pack.skylineXMove.ToArray());
+
+			AssertSkyline();
+		}
+
+		[Test]
+		public void TextureBaker_PackJob_skyline_addRect_011_Passes() {
+			setSkyline(new ushort[] {
+			//  1  2  3  4  5  6  7  8  9 10
+				5, 0, 5, 0, 3, 3, 4, 0, 0, 4,
+				2, 0, 2, 0, 1, 1, 3, 0, 0, 3,
+			});
+			AssertSkyline();
+
+			pack.skyline_addRect(1, 5, 4);
+
+			//                             1  2  3  4  5  6  7  8  9 10
+			Assert.AreEqual(new ushort[] { 5, 0, 5, 5, 3, 3, 4, 0, 0, 4 }, pack.skylineY.ToArray());
+			Assert.AreEqual(new ushort[] { 3, 0, 2, 3, 1, 1, 3, 0, 0, 3 }, pack.skylineXMove.ToArray());
+
+			AssertSkyline();
+		}
+
+		[Test]
+		public void TextureBaker_PackJob_skyline_addRect_012_Passes() {
+			setSkyline(new ushort[] {
+			//  1  2  3  4  5  6  7  8  9 10
+				5, 0, 5, 0, 3, 3, 4, 0, 0, 4,
+				2, 0, 2, 0, 1, 1, 3, 0, 0, 3,
+			});
+			AssertSkyline();
+
+			pack.skyline_addRect(1, 5, -4);
+
+			//                             1  2  3  4  5  6  7  8  9 10
+			Assert.AreEqual(new ushort[] { 5, 0, 5, 5, 3, 3, 4, 0, 0, 4 }, pack.skylineY.ToArray());
+			Assert.AreEqual(new ushort[] { 3, 0, 2, 3, 1, 1, 3, 0, 0, 3 }, pack.skylineXMove.ToArray());
+
+			AssertSkyline();
+		}
+
+		[Test]
+		public void TextureBaker_PackJob_skyline_addRect_013_Passes() {
+			setSkyline(new ushort[] {
+			//  1  2  3  4  5  6  7  8  9 10
+				0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+				9, 0, 0, 0, 0, 0, 0, 0, 0, 9,
+			});
+			AssertSkyline();
+
+			pack.skyline_addRect(5, 10, 1);
+
+			//                             1  2  3  4  5  6  7  8  9 10
+			Assert.AreEqual(new ushort[] {10, 0, 0, 0,10, 0, 0, 0, 0, 0 }, pack.skylineY.ToArray());
+			Assert.AreEqual(new ushort[] { 4, 0, 0, 0, 4, 4, 0, 0, 0, 4 }, pack.skylineXMove.ToArray());
+
+			AssertSkyline();
+		}
+
+		[Test]
+		public void TextureBaker_PackJob_skyline_addRect_014_Passes() {
+			setSkyline(new ushort[] {
+			//  1  2  3  4  5  6  7  8  9 10
+				0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+				9, 0, 0, 0, 0, 0, 0, 0, 0, 9,
+			});
+			AssertSkyline();
+
+			pack.skyline_addRect(5, 10, -10);
+
+			//                             1  2  3  4  5  6  7  8  9 10
+			Assert.AreEqual(new ushort[] { 0, 0, 0, 0, 0,10, 0, 0, 0,10 }, pack.skylineY.ToArray());
+			Assert.AreEqual(new ushort[] { 4, 0, 0, 0, 4, 4, 0, 0, 0, 4 }, pack.skylineXMove.ToArray());
+
+			AssertSkyline();
+		}
+
+		[Test]
+		public void TextureBaker_PackJob_skyline_addRect_015_Passes() {
+			setSkyline(new ushort[] {
+			//  1  2  3  4  5  6  7  8  9 10
+				0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+				9, 0, 0, 0, 0, 0, 0, 0, 0, 9,
+			});
+			AssertSkyline();
+
+			pack.skyline_addRect(10, 10, 1);
+
+			//                             1  2  3  4  5  6  7  8  9 10
+			Assert.AreEqual(new ushort[] {10, 0, 0, 0, 0, 0, 0, 0, 0,10 }, pack.skylineY.ToArray());
+			Assert.AreEqual(new ushort[] { 9, 0, 0, 0, 0, 0, 0, 0, 0, 9 }, pack.skylineXMove.ToArray());
 
 			AssertSkyline();
 		}

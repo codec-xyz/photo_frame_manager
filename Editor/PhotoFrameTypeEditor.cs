@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
@@ -12,7 +13,13 @@ namespace codec.PhotoFrame {
 	public class PhotoFrameTypeEditor : Editor {
 		private SerializedProperty material;
 		private SerializedProperty textureSlot;
-		private SerializedProperty isSmallerDimensionAlwaysOne;
+		private SerializedProperty photoOffset;
+		private SerializedProperty photoRotation;
+		private SerializedProperty photoDimensions;
+		private SerializedProperty frameMatching;
+		private SerializedProperty offsetUvs;
+		private SerializedProperty uvOrientationThreshold;
+		private SerializedProperty limitAspectRatiosToList;
 		private SerializedProperty photoFrames;
 		private SerializedProperty aspectRatios;
 		private ReorderableList list;
@@ -35,7 +42,6 @@ namespace codec.PhotoFrame {
 			}
 
 			var foundFloats = foundChars.Select(chars => {
-				Debug.Log(new string(chars.ToArray()));
 				bool isGood = float.TryParse(new string(chars.ToArray()), out float num);
 				return isGood ? num : float.NaN;
 			}).Where(num => !float.IsNaN(num)).Take(2).ToArray();
@@ -57,7 +63,13 @@ namespace codec.PhotoFrame {
 		void OnEnable() {
 			material = serializedObject.FindProperty("material");
 			textureSlot = serializedObject.FindProperty("textureSlot");
-			isSmallerDimensionAlwaysOne = serializedObject.FindProperty("isSmallerDimensionAlwaysOne");
+			photoOffset = serializedObject.FindProperty("photoOffset");
+			photoRotation = serializedObject.FindProperty("photoRotation");
+			photoDimensions = serializedObject.FindProperty("photoDimensions");
+			frameMatching = serializedObject.FindProperty("frameMatching");
+			offsetUvs = serializedObject.FindProperty("offsetUvs");
+			uvOrientationThreshold = serializedObject.FindProperty("uvOrientationThreshold");
+			limitAspectRatiosToList = serializedObject.FindProperty("limitAspectRatiosToList");
 			photoFrames = serializedObject.FindProperty("photoFrames");
 			aspectRatios = serializedObject.FindProperty("aspectRatios");
 
@@ -108,16 +120,57 @@ namespace codec.PhotoFrame {
 		}
 
 		public override void OnInspectorGUI() {
+			CustomEditorGUI.lockValue = false;
 			serializedObject.Update();
-			EditorGUILayout.PropertyField(material, new GUIContent("Photo Material"));
-			EditorGUILayout.PropertyField(textureSlot);
-			EditorGUILayout.PropertyField(isSmallerDimensionAlwaysOne);
-			aspectRatios.arraySize = photoFrames.arraySize;
+			UtilsGUI.AlignedPropertyField(new GUIContent("Photo Material"), material);
+			UtilsGUI.AlignedPropertyField(new GUIContent("Texture Slot", "Slot to use on the photo material. If left empty _MainTex is used. Ignored if no photo material is set"), textureSlot);
+			UtilsGUI.AlignedPropertyField(new GUIContent("Photo Offset"), photoOffset);
+			UtilsGUI.AlignedPropertyField(new GUIContent("Photo Rotation"), photoRotation);
+			UtilsGUI.AlignedPropertyField(new GUIContent("Photo Dimensions"), photoDimensions);
+
+			bool isGenerateFrame = (FrameMatching)frameMatching.enumValueIndex == FrameMatching.GenerateFrame;
+			UtilsGUI.AlignedField(new GUIContent("Frame Matching", "Options to modify frames to match aspect ratio\n- None\n- Scale To Photo - Scales the closest frame to any aspect ratio\n- Generate Frame - Edits the closest frame mesh to match any aspect ratio without streaching the frame"), frameMatching, (rect, labelA) => {
+				Vector2 buttonRect = UtilsGUI.OptionsDropDownSize();
+				if(isGenerateFrame) rect.width -= buttonRect.x;
+				EditorGUI.PropertyField(rect, frameMatching, labelA, false);
+				if(isGenerateFrame) {
+					rect.x += rect.width;
+					rect.width = buttonRect.x;
+					if(UtilsGUI.OptionsDropDown(rect, FocusType.Passive)) {
+						GenericMenu menu = new GenericMenu();
+						menu.AddItem(new GUIContent("Generate And Save Missing Frames"), false, () => {
+							foreach(PhotoFrameType frame in targets) {
+								EditorUtility.SetDirty(frame);
+								frame.generateAndSaveMissingFrames();
+							}
+						});
+						menu.ShowAsContext();
+					}
+				}
+			});
+
+			if(isGenerateFrame) {
+				EditorGUI.indentLevel++;
+				UtilsGUI.AlignedPropertyField(new GUIContent("Offset Frame UVs", "Offset each uv the same as its vertex when editing frame meshes"), offsetUvs);
+				UtilsGUI.AlignedPropertyField(new GUIContent("UV Orientation Threshold", "Threshold used to filter out unaligned edges for finding uv island orientation"), uvOrientationThreshold);
+				UtilsGUI.AlignedPropertyField(new GUIContent("Limit Aspect Ratios To List"), limitAspectRatiosToList);
+				EditorGUI.indentLevel--;
+			}
+
+			GUILayout.Space(EditorGUIUtility.singleLineHeight);
+
+			if(aspectRatios.arraySize != photoFrames.arraySize) aspectRatios.arraySize = photoFrames.arraySize;
 			list.DoLayoutList();
 			if(removeIndex != -1) {
 				doRemoveIndex(removeIndex);
 				removeIndex = -1;
 			}
+
+			if(targets.Cast<PhotoFrameType>().Any(t => t.hasDuplicates())) {
+				EditorGUILayout.HelpBox("Multiple frames have the same aspect ratio", MessageType.Warning);
+			}
+
+			GUILayout.Space(EditorGUIUtility.singleLineHeight);
 
 			GUIStyle boxStyle = new GUIStyle(GUI.skin.textField);
 			boxStyle.alignment = TextAnchor.MiddleCenter;
@@ -126,47 +179,24 @@ namespace codec.PhotoFrame {
 
 			Rect myRect = GUILayoutUtility.GetRect(0, EditorGUIUtility.singleLineHeight * 4, GUILayout.ExpandWidth(true));
 			GUI.Box(myRect, "Drag and Drop GameObjects Here\n(Prefabs/FBXs/etc.)", boxStyle);
-			if(myRect.Contains(Event.current.mousePosition)) {
-				if(Event.current.type == EventType.DragUpdated) {
-					bool goodToUse = DragAndDrop.objectReferences.Length > 0;
-					foreach(var obj in DragAndDrop.objectReferences) {
-						if(!(obj is GameObject)) goodToUse = false;
-					}
-
-					if(goodToUse) {
-						DragAndDrop.visualMode = DragAndDropVisualMode.Link;
-						Event.current.Use();
-					}
-				}
-				else if(Event.current.type == EventType.DragPerform) {
-					bool goodToUse = DragAndDrop.objectReferences.Length > 0;
-					foreach(var obj in DragAndDrop.objectReferences) {
-						if(!(obj is GameObject)) goodToUse = false;
-					}
-
-					if(goodToUse) {
-						photoFrames.arraySize += DragAndDrop.objectReferences.Length;
-						aspectRatios.arraySize += DragAndDrop.objectReferences.Length;
-						for(int i = 0; i < DragAndDrop.objectReferences.Length; i++) {
-							int arrayIndex = photoFrames.arraySize - DragAndDrop.objectReferences.Length + i;
-							Object obj = DragAndDrop.objectReferences[i];
-							photoFrames.GetArrayElementAtIndex(arrayIndex).objectReferenceValue = obj;
-							string fileName = AssetDatabase.GetAssetPath(obj).Split('/').Last();
-							aspectRatios.GetArrayElementAtIndex(arrayIndex).vector2Value = ParseForAspectRatios(fileName);
-						}
-					}
+			if(UtilsGUI.DragAndDropHandler<GameObject>(myRect, out var drop, o => o is GameObject go && go.scene.name == null, DragAndDropVisualMode.Link)) {
+				GameObject[] dropArray = drop.ToArray();
+				photoFrames.arraySize += dropArray.Length;
+				aspectRatios.arraySize += dropArray.Length;
+				for(int i = 0; i < dropArray.Length; i++) {
+					int arrayIndex = photoFrames.arraySize - dropArray.Length + i;
+					UnityEngine.Object obj = dropArray[i];
+					photoFrames.GetArrayElementAtIndex(arrayIndex).objectReferenceValue = obj;
+					string fileName = AssetDatabase.GetAssetPath(obj).Split('/').Last();
+					aspectRatios.GetArrayElementAtIndex(arrayIndex).vector2Value = ParseForAspectRatios(fileName);
 				}
 			}
 
 			bool changes = serializedObject.ApplyModifiedProperties();
-			if(changes) {
-				Scene activeScene = SceneManager.GetActiveScene();
-				var photoFrames = Resources.FindObjectsOfTypeAll<PhotoFrame>().Where(pf => pf.gameObject.scene == activeScene);
-				foreach(var photoFrame in photoFrames) photoFrame.updateEditorPreview();
-			}
+			if(changes) PhotoFrame.UpdateAll(true);
 		}
 
-		public override Texture2D RenderStaticPreview(string assetPath, Object[] subAssets, int width, int height) {
+		public override Texture2D RenderStaticPreview(string assetPath, UnityEngine.Object[] subAssets, int width, int height) {
 			PhotoFrameType photoFrameFileGroup = (PhotoFrameType)serializedObject.targetObject;
 			if(photoFrameFileGroup == null || photoFrameFileGroup.photoFrames == null || photoFrameFileGroup.photoFrames.Length == 0) return null;
 

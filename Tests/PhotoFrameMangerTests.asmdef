@@ -1,8 +1,10 @@
 {
     "name": "PhotoFrameMangerTests",
+    "rootNamespace": "",
     "references": [
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
+        "PhotoFrameAssembly",
         "PhotoFrameManagerAssembly",
         "Unity.Mathematics"
     ],
@@ -15,7 +17,7 @@
     "precompiledReferences": [
         "nunit.framework.dll"
     ],
-    "autoReferenced": false,
+    "autoReferenced": true,
     "defineConstraints": [
         "UNITY_INCLUDE_TESTS"
     ],

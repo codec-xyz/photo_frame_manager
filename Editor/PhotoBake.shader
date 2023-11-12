@@ -50,15 +50,8 @@
 				bool outsideTexture = uv.x < _Margin.x || _Margin.z < uv.x
 					|| uv.y < _Margin.y || _Margin.w < uv.y;
 
-				float2 texelWidth = _MainTex_TexelSize.xy / (_Crop.zw - _Crop.xy);
-
-				//float2 uvOld = uv;
-
-				uv = clamp(uv, texelWidth * 0.5, 1 - texelWidth * 0.5);
-
-				//bool isMargin = uv.x != uvOld.x || uv.y != uvOld.y;
-
 				uv = lerp(_Crop.xy, _Crop.zw, uv);
+				uv = clamp(uv, _Crop.xy + _MainTex_TexelSize.xy * 0.5, _Crop.zw - _MainTex_TexelSize.xy * 0.5);
 
 				float4 color = tex2D(_MainTex, uv);
 
