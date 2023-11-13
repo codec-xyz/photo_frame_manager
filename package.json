@@ -1,8 +1,8 @@
 {
   "name": "wtf.codec.photo-frame-manager",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "displayName": "Photo Frame Manager",
-  "description": "Photo frame manager\n\nUnity editor tool to manage photos and picture frames, and bake to optimized textures that use less memory, require fewer materials, and are sorted for mipmap streaming.\n\nhttps://github.com/codec-xyz/photo_frame_manager",
+  "description": "Photo frame manager\n\nPhoto frame manager and optimizer package for Unity. Has photo cropping, scaling, and resizing with live previews in the 3d scene and inspector. Bakes photos to optimized textures which reduce gpu memory usage, lower the material count, and are optimized for mipmap streaming.\n\nhttps://github.com/codec-xyz/photo_frame_manager",
   "unity": "2019.4",
   "author": {
     "name": "Codec",
