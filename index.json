@@ -17,8 +17,7 @@
 						"email": "dev@codec.wtf",
 						"url": "https://codec.wtf"
 					},
-					"vrchatVersion": "2022.1.1",
-					"url": "https://github.com/codec-xyz/photo_frame_manager/archive/refs/tags/v2.0.1.zip"
+					"url": "https://github.com/codec-xyz/photo_frame_manager/releases/download/v2.0.1/photo_frame_manager_v2.0.1.zip"
 				}
 			}
 		}
