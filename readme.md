@@ -6,15 +6,21 @@ Photo frame manager and optimizer package for Unity. Has photo cropping, scaling
 
 Tested for Unity2019, Unity2021, Unity2022, and VRChat. Note that this is an editor only utility that makes and sets up assets for you before you build.
 
-> Free to use picture frames fully setup for this package can be downloaded here https://github.com/codec-xyz/photo_frame_manager/releases/tag/v2.0.0
-> 
-> These picture frames are CC0 (Public Domain)
-> 
-> ![](PreviewImages~/DefaultFrame001.png)
+![](PreviewImages~/DefaultFrame001.png)
 
----
+## Installing (VRChat Creator Companion)
 
-## Installing
+**Settings** > **Packages** > **Add Repository**
+
+Paste this link: https://raw.githubusercontent.com/codec-xyz/photo_frame_manager/main/index.json
+
+Click **Add**
+
+![](PreviewImages~/VRChatCreatorCompanion001.png)
+
+Now in the VRChat Creator Companion when managing a project the package will apear in the list of packages.
+
+## Installing (Unity Only)
 
 **Window** > **Package Manager**
 
@@ -74,11 +80,9 @@ All of these settings including the resolution update the photo frame preview in
 
 ## Photo Frame Type Files
 
-These files define picture frames. They are a set of picture frames that should look the same but have different aspect ratios. They also hold a material that gets copied and used for the photo.
+Some fully setup picture frames are included with this package.
 
-> Free to use picture frames fully setup for this package can be downloaded here https://github.com/codec-xyz/photo_frame_manager/releases/tag/v2.0.0
->
-> These picture frames are CC0 (Public Domain)
+These files define picture frames. They are a set of picture frames that should look the same but have different aspect ratios. They also hold a material that gets copied and used for the photo and other settings.
 
 **If you want to setup your own** bring the model(s) into unity in any format that can be drop directly into a scene for example: .fbx, .obj, .blend, .prefabs, etc. Then right click in the project file view > **Create** > **Photo Frame Type**
 
