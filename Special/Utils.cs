@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if UNITY_EDITOR
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -353,3 +354,4 @@ namespace codec.PhotoFrame {
 		public static implicit operator Vector2(Fraction fraction) => new Vector2(fraction.n, fraction.d);
 	}
 }
+#endif
