@@ -12,7 +12,7 @@ Tested for Unity2019, Unity2021, Unity2022, and VRChat. Note that this is an edi
 
 Have VCC installed first https://vcc.docs.vrchat.com/
 
-Click this link: [Install Photo Frame Manager](vcc://vpm/addRepo?url=https%3A%2F%2Fraw.githubusercontent.com%2Fcodec-xyz%2Fphoto_frame_manager%2Fmain%2Findex.json)
+Copy & paste this link in a new tab to install: <vcc://vpm/addRepo?url=https%3A%2F%2Fraw.githubusercontent.com%2Fcodec-xyz%2Fphoto_frame_manager%2Fmain%2Findex.json>
 
 Now in VCC when managing a project the Photo Frame Manager package will apear in the list of available packages
 
