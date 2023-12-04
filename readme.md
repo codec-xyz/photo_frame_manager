@@ -10,15 +10,11 @@ Tested for Unity2019, Unity2021, Unity2022, and VRChat. Note that this is an edi
 
 ## Installing (VRChat Creator Companion)
 
-**Settings** > **Packages** > **Add Repository**
+Have VCC installed first https://vcc.docs.vrchat.com/
 
-Paste this link: https://raw.githubusercontent.com/codec-xyz/photo_frame_manager/main/index.json
+Click this link: [Install Photo Frame Manager](vcc://vpm/addRepo?url=https%3A%2F%2Fraw.githubusercontent.com%2Fcodec-xyz%2Fphoto_frame_manager%2Fmain%2Findex.json)
 
-Click **Add**
-
-![](PreviewImages~/VRChatCreatorCompanion001.png)
-
-Now in the VRChat Creator Companion when managing a project the package will apear in the list of packages.
+Now in VCC when managing a project the Photo Frame Manager package will apear in the list of available packages
 
 ## Installing (Unity Only)
 
