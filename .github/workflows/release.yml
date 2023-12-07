@@ -66,6 +66,11 @@ jobs:
               ${{ vars.PACKAGE_EXTRA_INFO }}
             };
             fs.writeFileSync(indexFilePath, JSON.stringify(indexData, null, '\t'));
+
+            const packageFilePath = '${{ github.workspace }}/src/package.json';
+            let packageData = JSON.parse(fs.readFileSync(packageFilePath));
+            packageData.version = '${{ inputs.version }}';
+            fs.writeFileSync(packageFilePath, JSON.stringify(packageData, null, '\t'));
           EOF
 
       - name: Commit Changes
