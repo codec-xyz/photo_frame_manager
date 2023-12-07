@@ -1,7 +1,7 @@
 {
 	"name": "Photo Frame Manager Listing",
 	"author": "Codec",
-	"url": "https://raw.githubusercontent.com/codec-xyz/photo_frame_manager/main/index.json",
+	"url": "https://codec-xyz.github.io/photo_frame_manager/index.json",
 	"id": "wtf.codec.photo-frame-manager.listing",
 	"packages": {
 		"wtf.codec.photo-frame-manager": {
