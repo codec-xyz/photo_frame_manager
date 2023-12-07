@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="icon" href="readme_images/PhotoFrameIcon.png" type="image/x-icon"/>
+	<title>Photo Frame Manager VCC Add</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;900&display=swap" rel="stylesheet">
+	<style>
+		:root {
+			--background-color: white;
+			--text-color: #282828;
+		}
+
+		@media (prefers-color-scheme: dark) {
+			:root {
+				--background-color: #282828;
+				--text-color: white;
+			}
+		}
+
+		* {
+			font-family: 'Roboto', sans-serif;
+			color: var(--text-color)
+		}
+		html {
+			height: 100%;
+			display: flex;
+		}
+		body {
+			background: var(--background-color);
+			flex-grow: 1;
+			display: grid;
+			justify-content: center;
+			align-items: center;
+		}
+
+		.action-button {
+			border: 2px solid var(--text-color);
+			padding: 10px;
+			text-decoration: none;
+			border-radius: 5px;
+			display: block;
+			width: fit-content;
+		}
+	</style>
+	<script defer>
+		document.addEventListener('DOMContentLoaded', () => setTimeout(() => window.location.href = 'vcc://vpm/addRepo?url=https%3A%2F%2Fraw.githubusercontent.com%2Fcodec-xyz%2Fphoto_frame_manager%2Fmain%2Findex.json', 5));
+	</script>
+</head>
+<body>
+	<div>
+		<div style="margin-bottom: 1.5em;">
+			<div>Adding, should launch <a href="https://vcc.docs.vrchat.com/">VCC</div>
+			<div style="font-weight: bold; font-size: 2em;"><a href="https://github.com/codec-xyz/photo_frame_manager">Photo Frame Manager</a></div>
+			<div>by <a href="https://github.com/codec-xyz/">Codec</a></div>
+		</div>
+		<a class="action-button" href="vcc://vpm/addRepo?url=https%3A%2F%2Fraw.githubusercontent.com%2Fcodec-xyz%2Fphoto_frame_manager%2Fmain%2Findex.json">Try adding again</a>
+	</div>
+</body>
+</html>
