@@ -36,7 +36,9 @@ Paste the url https://github.com/codec-xyz/photo_frame_manager.git and click add
 
 ![](readme_images/Menu004.png)
 
-**Or** you can right click on some image files in the project file view and select **Add Images as Photo Frames** to add photo frames with the selected images set. You can add many images at once this way.
+### Or
+
+you can right click on some image files in the project file view and select **Add Images as Photo Frames** to add photo frames with the selected images set. You can add many images at once this way.
 
 ![](readme_images/Menu002.png)
 
@@ -73,39 +75,6 @@ The selected photo is displayed with a grey overlay to show the area being cropp
 **Snap Down** - moves the photo frame to the nearest collider below it
 
 All of these settings including the resolution update the photo frame preview in the 3d scene live.
-
-## Photo Frame Type Files
-
-Some fully setup picture frames are included with this package.
-
-These files define picture frames. They are a set of picture frames that should look the same but have different aspect ratios. They also hold a material that gets copied and used for the photo and other settings.
-
-**If you want to setup your own** bring the model(s) into unity in any format that can be drop directly into a scene for example: .fbx, .obj, .blend, .prefabs, etc. Then right click in the project file view > **Create** > **Photo Frame Type**
-
-![](readme_images/Menu003.png)
-
-Select the file and look in the **Inspector** to see the settings.
-
-![](readme_images/FrameType001.png)
-
-**Photo Material** - the material that gets copied and used for the photo. All values in the material are kept. Leaving this blank will result in the photo using the default unlit material
-
-**Texture Slot** - a string of the texture slot to use on the material for the photo. If left blank the mainTexture slot is used
-
-**Photo Offset** - photo offset for frame
-
-**Photo Rotation** - photo rotation for frame
-
-**Photo Dimensions** - setting for sizing the photo inserted into frame
-
-**Frame Matching** - settings for automatically resizing frame to fit photo
-- **None**
-- **Scale To Photo**
-- **Generate Frame** - algorithm to resize frame mesh to different aspect ratio
-
-The rest is a list of the picture frame file and its aspect ratio. The order does not matter except that the first object in the list is used as the preview. Leaving the list blank is okay and will result in no picture frames. This can be used to set just the material of a photo.
-
-The box at the bottom can be used to drag and drop one or more GameObject files into the list. This will also try to get the aspect ratios from the file names.
 
 ## Baking Photo Frames
 
@@ -168,6 +137,39 @@ These are all the photos present in the scene. Clicking a photo will select and 
 ![](readme_images/Window003.png)
 
 These are all the baked textures currently saved and some information about each. Clicking a photo will select and highlight that photo frame in the scene.
+
+## Photo Frame Type Files
+
+Some fully setup picture frames are included with this package.
+
+These files define picture frames. They are a set of picture frames that should look the same but have different aspect ratios. They also hold a material that gets copied and used for the photo and other settings.
+
+**If you want to setup your own** bring the model(s) into unity in any format that can be drop directly into a scene for example: .fbx, .obj, .blend, .prefabs, etc. Then right click in the project file view > **Create** > **Photo Frame Type**
+
+![](readme_images/Menu003.png)
+
+Select the file and look in the **Inspector** to see the settings.
+
+![](readme_images/FrameType001.png)
+
+**Photo Material** - the material that gets copied and used for the photo. All values in the material are kept. Leaving this blank will result in the photo using the default unlit material
+
+**Texture Slot** - a string of the texture slot to use on the material for the photo. If left blank the mainTexture slot is used
+
+**Photo Offset** - photo offset for frame
+
+**Photo Rotation** - photo rotation for frame
+
+**Photo Dimensions** - setting for sizing the photo inserted into frame
+
+**Frame Matching** - settings for automatically resizing frame to fit photo
+- **None**
+- **Scale To Photo**
+- **Generate Frame** - algorithm to resize frame mesh to different aspect ratio
+
+The rest is a list of the picture frame file and its aspect ratio. The order does not matter except that the first object in the list is used as the preview. Leaving the list blank is okay and will result in no picture frames. This can be used to set just the material of a photo.
+
+The box at the bottom can be used to drag and drop one or more GameObject files into the list. This will also try to get the aspect ratios from the file names.
 
 ## UI Alignment
 
