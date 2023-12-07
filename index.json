@@ -1,6 +1,6 @@
 {
 	"name": "Photo Frame Manager Listing",
-	"author": "Codec",
+	"author": "codec",
 	"url": "https://codec-xyz.github.io/photo_frame_manager/index.json",
 	"id": "wtf.codec.photo-frame-manager.listing",
 	"packages": {
@@ -13,7 +13,7 @@
 					"unity": "2019.4",
 					"description": "Photo frame manager and optimizer package for Unity. Has photo cropping, scaling, and resizing with live previews in the 3d scene and inspector. Bakes photos to optimized textures which reduce gpu memory usage, lower the material count, and are optimized for mipmap streaming.",
 					"author": {
-						"name": "Codec",
+						"name": "codec",
 						"email": "dev@codec.wtf",
 						"url": "https://codec.wtf"
 					},
@@ -26,7 +26,7 @@
 					"unity": "2019.4",
 					"description": "Photo frame manager and optimizer package for Unity. Has photo cropping, scaling, and resizing with live previews in the 3d scene and inspector. Bakes photos to optimized textures which reduce gpu memory usage, lower the material count, and are optimized for mipmap streaming.",
 					"author": {
-						"name": "Codec",
+						"name": "codec",
 						"email": "dev@codec.wtf",
 						"url": "https://codec.wtf"
 					},
@@ -40,7 +40,7 @@
 					"unity": "2019.4",
 					"description": "Photo frame manager and optimizer package for Unity. Has photo cropping, scaling, and resizing with live previews in the 3d scene and inspector. Bakes photos to optimized textures which reduce gpu memory usage, lower the material count, and are optimized for mipmap streaming.",
 					"author": {
-						"name": "Codec",
+						"name": "codec",
 						"email": "dev@codec.wtf",
 						"url": "https://codec.wtf"
 					}
