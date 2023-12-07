@@ -1,0 +1,92 @@
+name: Release
+
+on: 
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version'
+        required: true
+        type: string
+      description:
+        description: 'Description'
+        required: false
+        type: string
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      tag: v${{ inputs.version }}
+      zipFile: ${{ vars.PACKAGE_NAME }}-v${{ inputs.version }}.zip
+      #unityPackage: ${{ vars.PACKAGE_NAME }}-v${{ inputs.version }}.unitypackage
+    steps:
+      - name: Check PACKAGE_NAME Exists
+        run: |-
+          if [ "${{ vars.PACKAGE_NAME }}" == "" ]; then
+            exit 1
+          fi
+
+      - name: Check Tag Does Not Already Exist
+        uses: actions/github-script@v7
+        with:
+          script: |-
+            github.rest.git.getRef({
+              ref: 'tags/${{ env.tag }}',
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            }).then(() => process.exit(1)).catch(() => console.log('Confirmed tag ${{ env.tag }} does not already exist'));
+
+      - uses: actions/checkout@v4
+      
+      # # Build a list of .meta files for future use
+      # - name: Track Package Meta Files
+      #   run: find "${{ env.packagePath }}/" -name \*.meta >> metaList
+      
+      # # Make a UnityPackage version of the Package for release
+      # - name: Create UnityPackage
+      #   uses: pCYSl5EDgo/create-unitypackage@cfcd3cf0391a5ef1306342794866a9897c32af0b
+      #   with:
+      #     package-path: ${{ env.unityPackage }}
+      #     include-files: metaList
+
+      - name: Add index.json Entry
+        run: |-
+          npx node << EOF
+            const fs = require('fs');
+            const indexFilePath = '${{ github.workspace }}/index.json';
+            let indexData = JSON.parse(fs.readFileSync(indexFilePath));
+            indexData.packages ??= {};
+            indexData.packages['${{ vars.PACKAGE_NAME }}'] ??= { versions: {} };
+            indexData.packages['${{ vars.PACKAGE_NAME }}'].versions['${{ inputs.version }}'] = {
+              name: '${{ vars.PACKAGE_NAME }}',
+              version: '${{ inputs.version }}',
+              url: '${{ github.server_url }}/${{ github.repository }}/releases/download/${{ env.tag }}/${{ env.zipFile }}',
+              ${{ vars.PackageExtraInfo }}
+            };
+            fs.writeFileSync(indexFilePath, JSON.stringify(indexData, null, '\t'));
+          EOF
+
+      - name: Commit Changes
+        uses: stefanzweifel/git-auto-commit-action@v5.0.0
+        with:
+          commit_message: ${{ env.tag }}
+          tagging_message: ${{ env.tag }}
+
+      - name: Create Zip
+        working-directory: "${{ github.workspace }}/src"
+        run: zip -r  "${{ github.workspace }}/${{ env.zipFile }}" .
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v0.1.15
+        with:
+          files: |-
+           ${{ github.workspace }}/${{ env.zipFile }}
+          # ${{ env.unityPackage }}
+          tag_name: ${{ env.tag }}
+          body: ${{ inputs.description }}
