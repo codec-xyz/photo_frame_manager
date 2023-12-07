@@ -7,10 +7,6 @@ on:
         description: 'Version'
         required: true
         type: string
-      description:
-        description: 'Description'
-        required: false
-        type: string
 
 concurrency:
   group: release
@@ -67,7 +63,7 @@ jobs:
               name: '${{ vars.PACKAGE_NAME }}',
               version: '${{ inputs.version }}',
               url: '${{ github.server_url }}/${{ github.repository }}/releases/download/${{ env.tag }}/${{ env.zipFile }}',
-              ${{ vars.PackageExtraInfo }}
+              ${{ vars.PACKAGE_EXTRA_INFO }}
             };
             fs.writeFileSync(indexFilePath, JSON.stringify(indexData, null, '\t'));
           EOF
@@ -89,4 +85,3 @@ jobs:
            ${{ github.workspace }}/${{ env.zipFile }}
           # ${{ env.unityPackage }}
           tag_name: ${{ env.tag }}
-          body: ${{ inputs.description }}
