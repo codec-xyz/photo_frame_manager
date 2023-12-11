@@ -46,8 +46,12 @@
 			width: fit-content;
 		}
 	</style>
-	<script defer>
-		document.addEventListener('DOMContentLoaded', () => setTimeout(() => window.location.href = 'vcc://vpm/addRepo?url=https%3A%2F%2Fcodec-xyz.github.io%2Fphoto_frame_manager%2Findex.json', 5));
+	<script>
+		const installUrl = 'vcc://vpm/addRepo?url=' + encodeURIComponent('https://codec-xyz.github.io/photo_frame_manager/index.json');
+		document.addEventListener('DOMContentLoaded', () => {
+			document.getElementById('add-again-link').href = installUrl;
+			setTimeout(() => window.location.href = installUrl, 5);
+		});
 	</script>
 </head>
 <body>
@@ -57,7 +61,7 @@
 			<div style="font-weight: bold; font-size: 2em;"><a href="https://github.com/codec-xyz/photo_frame_manager">Photo Frame Manager</a></div>
 			<div>by <a href="https://github.com/codec-xyz/">codec</a></div>
 		</div>
-		<a class="action-button" href="vcc://vpm/addRepo?url=https%3A%2F%2Fcodec-xyz.github.io%2Fphoto_frame_manager%2Findex.json">Try adding again</a>
+		<a class="action-button" id="add-again-link">Try adding again</a>
 	</div>
 </body>
 </html>
