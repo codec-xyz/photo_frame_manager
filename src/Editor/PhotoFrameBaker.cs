@@ -6,6 +6,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements.Experimental;
+using UnityEngine.WSA;
 using static codec.PhotoFrame.TextureBaker;
 using static UnityEditor.PlayerSettings;
 
@@ -20,24 +21,7 @@ namespace codec.PhotoFrame {
 			return folderPath;
 		}
 
-		public static TextureBaker.Input PhotoFrameToInput(PhotoFrame pf) {
-			int shaderId = 0;
-			if(pf.frameType && pf.frameType.material) shaderId = pf.frameType.material.GetInstanceID();
-
-			pf.getAspectRatios(out float photoAspectRatio, out float frameAspectRatio, out _);
-			pf.getCropUV(photoAspectRatio, frameAspectRatio, out Vector2 uvMin, out Vector2 uvMax);
-
-			return new TextureBaker.Input {
-				texture = pf.photo,
-				point = pf.transform.position,
-				sortGroup = shaderId,
-				uvMin = uvMin,
-				uvMax = uvMax,
-				size = pf.getFinalResolution(),
-			};
-		}
-
-		public static (TextureBaker.Input[] inputs, int[] indexes) PhotoFramesToInputs(PhotoFrame[] pfs) {
+		public static (TextureBaker.Input[] inputs, int[] indexes) PhotoFramesToInputs(PhotoFrame[] pfs, bool joinDuplicates) {
 			var info = pfs.Select(pf => {
 				pf.getAspectRatios(out float photoAspectRatio, out float frameAspectRatio, out _);
 				pf.getCropUV(photoAspectRatio, frameAspectRatio, out Vector2 uvMin, out Vector2 uvMax);
@@ -54,34 +38,36 @@ namespace codec.PhotoFrame {
 				}
 
 				bool original = true;
-				for(int i = 0; i < inputs.Count(); i++) {
-					if(inputs[i].i.texture != info[a].texture) continue;
+				if(joinDuplicates) {
+					for(int i = 0; i < inputs.Count(); i++) {
+						if(inputs[i].i.texture != info[a].texture) continue;
 
-					Vector2Int size = info[a].size;
-					Vector2 uvMax = info[a].uvMax, uvMin = info[a].uvMin;
-					int addedBySelf = (int)(size.x * (uvMax.x - uvMin.x) * size.y * (uvMax.y - uvMin.y));
+						Vector2Int size = info[a].size;
+						Vector2 uvMax = info[a].uvMax, uvMin = info[a].uvMin;
+						int addedBySelf = (int)(size.x * (uvMax.x - uvMin.x) * size.y * (uvMax.y - uvMin.y));
 
-					size = inputs[i].i.size;
-					uvMax = inputs[i].i.uvMax;
-					uvMin = inputs[i].i.uvMin;
-					int alreadyUsed = (int)(size.x * (uvMax.x - uvMin.x) * size.y * (uvMax.y - uvMin.y));
+						size = inputs[i].i.size;
+						uvMax = inputs[i].i.uvMax;
+						uvMin = inputs[i].i.uvMin;
+						int alreadyUsed = (int)(size.x * (uvMax.x - uvMin.x) * size.y * (uvMax.y - uvMin.y));
 
-					size = new Vector2Int(Math.Max(inputs[i].i.size.x, info[a].size.x), Math.Max(inputs[i].i.size.y, info[a].size.y));
-					uvMin = new Vector2(Math.Min(inputs[i].i.uvMin.x, info[a].uvMin.x), Math.Min(inputs[i].i.uvMin.y, info[a].uvMin.y));
-					uvMax = new Vector2(Math.Max(inputs[i].i.uvMax.x, info[a].uvMax.x), Math.Max(inputs[i].i.uvMax.y, info[a].uvMax.y));
-					int addedTogether = (int)(size.x * (uvMax.x - uvMin.x) * size.y * (uvMax.y - uvMin.y)) - alreadyUsed;
+						size = new Vector2Int(Math.Max(inputs[i].i.size.x, info[a].size.x), Math.Max(inputs[i].i.size.y, info[a].size.y));
+						uvMin = new Vector2(Math.Min(inputs[i].i.uvMin.x, info[a].uvMin.x), Math.Min(inputs[i].i.uvMin.y, info[a].uvMin.y));
+						uvMax = new Vector2(Math.Max(inputs[i].i.uvMax.x, info[a].uvMax.x), Math.Max(inputs[i].i.uvMax.y, info[a].uvMax.y));
+						int addedTogether = (int)(size.x * (uvMax.x - uvMin.x) * size.y * (uvMax.y - uvMin.y)) - alreadyUsed;
 
-					if(addedTogether > addedBySelf) continue;
+						if(addedTogether > addedBySelf) continue;
 
-					indexes[a] = i;
-					var input = inputs[i].i;
-					input.point += info[a].point;
-					input.uvMin = new Vector2(Math.Min(input.uvMin.x, info[a].uvMin.x), Math.Min(input.uvMin.y, info[a].uvMin.y));
-					input.uvMax = new Vector2(Math.Max(input.uvMax.x, info[a].uvMax.x), Math.Max(input.uvMax.y, info[a].uvMax.y));
-					input.size = new Vector2Int(Math.Max(input.size.x, info[a].size.x), Math.Max(input.size.y, info[a].size.y));
-					inputs[i] = (i: input, count: inputs[i].count + 1);
-					original = false;
-					break;
+						indexes[a] = i;
+						var input = inputs[i].i;
+						input.point += info[a].point;
+						input.uvMin = new Vector2(Math.Min(input.uvMin.x, info[a].uvMin.x), Math.Min(input.uvMin.y, info[a].uvMin.y));
+						input.uvMax = new Vector2(Math.Max(input.uvMax.x, info[a].uvMax.x), Math.Max(input.uvMax.y, info[a].uvMax.y));
+						input.size = new Vector2Int(Math.Max(input.size.x, info[a].size.x), Math.Max(input.size.y, info[a].size.y));
+						inputs[i] = (i: input, count: inputs[i].count + 1);
+						original = false;
+						break;
+					}
 				}
 
 				if(original) {
@@ -166,20 +152,13 @@ namespace codec.PhotoFrame {
 		public delegate void BakeProgressUpdate(string info, float progress);
 		public static void Bake(PhotoFrame[] photoFrames, SceneSettings settings, bool isDebug) {
 			if(photoFrames.Length == 0) return;
-			TextureBaker.Input[] photoFrameInput;
-			int[] indexes;
-			if(settings.joinDuplicates) (photoFrameInput, indexes) = PhotoFramesToInputs(photoFrames);
-			else {
-				photoFrameInput = photoFrames.Select(PhotoFrameToInput).ToArray();
-				indexes = photoFrames.Select((_, i) => i).ToArray();
-			}
+			(TextureBaker.Input[] photoFrameInput, int[] indexes) = PhotoFramesToInputs(photoFrames, settings.joinDuplicates);
 			LimitPhotoSize(photoFrameInput, settings.textureSize, settings.margin);
 			TextureBaker.isDebug = isDebug;
 			TextureBaker.Output[] outputs = TextureBaker.Bake(photoFrameInput, settings.textureSize, settings.margin, settings.scaleMargin, Mathf.Pow(settings.textureFit * 50f, 2), settings.skylineMaxSpread, settings.overhangWeight, settings.neighborhoodWasteWeight, settings.topWasteWeight, settings.estimatedPackEfficiency, out Texture2D[] textures, Progress_BakePackSort);
 
 			string folder = AssureAutoSaveFolder();
 			string[] texturePaths = Enumerable.Range(0, textures.Length).Select(_ => $"{folder}/Photo-Texture-{System.Guid.NewGuid()}.png").ToArray();
-			var textureMaterials = Enumerable.Range(0, textures.Length).Select(_ => new List<(Material source, Material created)>()).ToArray();
 			string[] meshPaths = Enumerable.Range(0, photoFrames.Length).Select(_ => $"{folder}/Photo-Mesh-{System.Guid.NewGuid()}.asset").ToArray();
 
 			byte[] dummyTextureData = Utils.MakeTexture(1, 1, Color.white).EncodeToPNG();
@@ -189,25 +168,10 @@ namespace codec.PhotoFrame {
 				AssetDatabase.ImportAsset(texturePaths[i]);
 			}
 
-			var frames = new List<(PhotoFrameType type, int index, float ratio, GameObject prefab, bool isGenerated)>();
+			FrameBaker frames = new FrameBaker();
 			for(int i = 0; i < photoFrames.Length; i++) {
-				PhotoFrame pf = photoFrames[i];
 				Progress_PreparingFrames(i, photoFrames.Length);
-				if(!pf.frameType) continue;
-				pf.getAspectRatios(out float photoAspectRatio, out float frameAspectRatio, out int frameIndex);
-				pf.getCropUV(photoAspectRatio, frameAspectRatio, out _, out _);
-				var size = pf.getPhotoWorldSize(frameAspectRatio, frameIndex, out Vector2 frameScale);
-				var sameInfo = frames.Find(info => info.type == pf.frameType && info.index == frameIndex && info.ratio == frameAspectRatio);
-				if(sameInfo != default) continue;
-				GameObject prefab = pf.frameType.getOrGenerateFrame(frameIndex, frameAspectRatio, out bool isGenerated, size);
-				if(isGenerated) {
-					AssetDatabase.CreateAsset(prefab.GetComponent<MeshFilter>().sharedMesh, $"{folder}/Photo-FrameMesh-{System.Guid.NewGuid()}.asset");
-					GameObject prefabFile = PrefabUtility.SaveAsPrefabAsset(prefab, $"{folder}/Photo-FramePrefab-{System.Guid.NewGuid()}.prefab");
-					GameObject.DestroyImmediate(prefab);
-					prefab = prefabFile;
-				}
-				sameInfo = (pf.frameType, frameIndex, frameAspectRatio, prefab, isGenerated);
-				frames.Add(sameInfo);
+				frames.add_possiblyGenerateAndSave(photoFrames[i], folder);
 			}
 
 			try {
@@ -217,9 +181,10 @@ namespace codec.PhotoFrame {
 
 				settings.hasBake = true;
 				settings.textures = texturePaths.Select(path => AssetDatabase.LoadAssetAtPath<Texture2D>(path)).ToArray();
+
 				List<PhotoFrame>[] photoFramesSave = new List<PhotoFrame>[textures.Length + 1].Select(_ => new List<PhotoFrame>()).ToArray();
 				List<Mesh>[] meshesSave = new List<Mesh>[textures.Length + 1].Select(_ => new List<Mesh>()).ToArray();
-				List<Material> extraMaterials = new List<Material>();
+				MaterialBaker materials = new MaterialBaker();
 
 				for(int i = 0; i < textures.Length; i++) {
 					Progress_SavingTexutes(i, textures.Length);
@@ -237,59 +202,35 @@ namespace codec.PhotoFrame {
 						continue;
 					}
 
-					Material sourceMaterial = pf.photoMaterial;
-					Material material = null;
-					if(textureIndex != -2) material = textureMaterials[textureIndex].Find(matInfo => matInfo.source == sourceMaterial).created;
-					if(material == null) {
-						material = new Material(pf.photoMaterial);
-						if(textureIndex != -2) material.SetTexture(pf.photoMaterialTextureSlot, settings.textures[textureIndex]);
-						else material.SetTexture(pf.photoMaterialTextureSlot, pf.photo);
-						AssetDatabase.CreateAsset(material, $"{folder}/Photo-Material-{System.Guid.NewGuid()}.mat");
-						if(textureIndex != -2) textureMaterials[textureIndex].Add((source: sourceMaterial, created: material));
-						else extraMaterials.Add(material);
-					}
-
 					Progress_SettingUpPhotoFrames(i, photoFrames.Length);
+
+					Texture2D texture = textureIndex == -2 ? pf.photo : settings.textures[textureIndex];
+					Material material = materials.get_orGenerateAndSave(pf.photoMaterial, texture, pf.photoMaterialTextureSlot, folder);
 
 					pf.getAspectRatios(out float photoAspectRatio, out float frameAspectRatio, out _);
 					pf.getCropUV(photoAspectRatio, frameAspectRatio, out Vector2 uvMin, out Vector2 uvMax);
 
-					Vector2 newUvMin, newUvMax;
+					Vector2 newUvMin = uvMin, newUvMax = uvMax;
 					bool uvRotate = false;
 
 					if(indexes[i] != -1) {
 						(newUvMin, newUvMax) = CalcFinalUv(uvMin, uvMax, photoFrameInput[indexes[i]].uvMin, photoFrameInput[indexes[i]].uvMax, outputs[indexes[i]].uvMin, outputs[indexes[i]].uvMax, outputs[indexes[i]].uvRotate);
 						uvRotate = outputs[indexes[i]].uvRotate;
 					}
-					else {
-						newUvMin = uvMin;
-						newUvMax = uvMax;
-					}
 
-					Mesh mesh = pf.setBakedData(folder, material, newUvMin, newUvMax, uvRotate,
-					(type, index, ratio, size) => {
-						if(type == null) return null;
-						var sameInfo = frames.Find(info => info.type == type && info.index == index && info.ratio == ratio);
-						return sameInfo.prefab;
-					});
+					Mesh mesh = pf.setBakedData(folder, material, newUvMin, newUvMax, uvRotate, (type, index, ratio, size) => frames.get(type, index, ratio, size));
 					AssetDatabase.CreateAsset(mesh, meshPaths[i]);
 
-					if(textureIndex != -2) {
-						photoFramesSave[textureIndex].Add(pf);
-						meshesSave[textureIndex].Add(mesh);
-					}
-					else {
-						photoFramesSave[textures.Length].Add(pf);
-						meshesSave[textures.Length].Add(mesh);
-					}
+					photoFramesSave[textureIndex == -2 ? textures.Length : textureIndex].Add(pf);
+					meshesSave[textureIndex == -2 ? textures.Length : textureIndex].Add(mesh);
 				}
 
 				settings.pfCounts = photoFramesSave.Select(a => a.Count).ToArray();
 				settings.photoFrames = photoFramesSave.SelectMany(a => a).ToArray();
 				settings.meshes = meshesSave.SelectMany(a => a).ToArray();
-				settings.materials = textureMaterials.SelectMany(a => a.Select(b => b.created)).Concat(extraMaterials).ToArray();
-				settings.frameMeshes = frames.Where(a => a.isGenerated).Select(a => a.prefab.GetComponent<MeshFilter>().sharedMesh).ToArray();
-				settings.framePrefabs = frames.Where(a => a.isGenerated).Select(a => a.prefab).ToArray();
+				settings.materials = materials.getGeneratedMaterials();
+				settings.frameMeshes = frames.getGeneratedMeshes();
+				settings.framePrefabs = frames.getGeneratedPrefabs();
 			}
 			finally {
 				//IDK unity 2022 needs two or asset import progress bar does not go away
@@ -321,6 +262,72 @@ namespace codec.PhotoFrame {
 
 			EditorUtility.SetDirty(importer);
 			importer.SaveAndReimport();
+		}
+	}
+
+	public class MaterialBaker {
+		public Dictionary<(Material material, Texture2D texture), Material> materials = new Dictionary<(Material material, Texture2D texture), Material>();
+
+		public Material get_orGenerateAndSave(Material srcMaterial, Texture2D texture, string textureSlot, string folder) {
+			bool found = materials.TryGetValue((srcMaterial, texture), out Material material);
+			if(!found) {
+				material = new Material(srcMaterial);
+				material.SetTexture(textureSlot, texture);
+				AssetDatabase.CreateAsset(material, $"{folder}/Photo-Material-{System.Guid.NewGuid()}.mat");
+				materials.Add((srcMaterial, texture), material);
+			}
+			return material;
+		}
+
+		public Material[] getGeneratedMaterials() {
+			return materials.Values.ToArray();
+		}
+	}
+
+	public class FrameBaker {
+		public struct TypeInfo {
+			public PhotoFrameType type;
+			public int index;
+			public float ratio;
+
+			public GameObject prefab;
+			public bool isGenerated;
+		}
+		public List<TypeInfo> frames = new List<TypeInfo>();
+
+		public void add_possiblyGenerateAndSave(PhotoFrame pf, string folder) {
+			if(pf.frameType == null) return;
+
+			pf.getAspectRatios(out float photoAspectRatio, out float frameAspectRatio, out int frameIndex);
+			pf.getCropUV(photoAspectRatio, frameAspectRatio, out _, out _);
+			var size = pf.getPhotoWorldSize(frameAspectRatio, frameIndex, out Vector2 frameScale);
+
+			TypeInfo sameInfo = frames.Find(info => info.type == pf.frameType && info.index == frameIndex && info.ratio == frameAspectRatio);
+			if(sameInfo.type != null) return;
+
+			GameObject prefab = pf.frameType.getOrGenerateFrame(frameIndex, frameAspectRatio, out bool isGenerated, size);
+			if(isGenerated) {
+				AssetDatabase.CreateAsset(prefab.GetComponent<MeshFilter>().sharedMesh, $"{folder}/Photo-FrameMesh-{System.Guid.NewGuid()}.asset");
+				GameObject prefabFile = PrefabUtility.SaveAsPrefabAsset(prefab, $"{folder}/Photo-FramePrefab-{System.Guid.NewGuid()}.prefab");
+				GameObject.DestroyImmediate(prefab);
+				prefab = prefabFile;
+			}
+			sameInfo = new TypeInfo { type = pf.frameType, index = frameIndex, ratio = frameAspectRatio, prefab = prefab, isGenerated = isGenerated };
+			frames.Add(sameInfo);
+		}
+
+		public GameObject get(PhotoFrameType type, int index, float ratio, Vector2 size) {
+			if(type == null) return null;
+			var sameInfo = frames.Find(info => info.type == type && info.index == index && info.ratio == ratio);
+			return sameInfo.prefab;
+		}
+
+		public Mesh[] getGeneratedMeshes() {
+			return frames.Where(a => a.isGenerated).Select(a => a.prefab.GetComponent<MeshFilter>().sharedMesh).ToArray();
+		}
+
+		public GameObject[] getGeneratedPrefabs() {
+			return frames.Where(a => a.isGenerated).Select(a => a.prefab).ToArray();
 		}
 	}
 }
