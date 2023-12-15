@@ -60,6 +60,8 @@ Select the photo frame and look in the **Inspector** to see the settings.
 
 **Crop Offset Y** - move the crop up or down
 
+**Don't Bake Photo Use Source** - does not bake photo. Uses the specified photo as the material texture
+
 **Resolution Type** - the way the resolution is controlled
 - **Use Scene Settings**
 - **Resolution Max Major Size** - the size in pixels you want for the photo's larger side to be. Acts as an upper limit so if the size is larger than the photo's actual size its resolution stays unchanged. The buttons below are some presets for this value

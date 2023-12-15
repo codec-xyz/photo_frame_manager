@@ -72,6 +72,7 @@ namespace codec.PhotoFrame {
 		public float cropOffsetX = 0;
 		public float cropOffsetY = 0;
 
+		public bool dontBakePhotoUseSource = false;
 		public ResolutionType resolutionType = ResolutionType.UseSceneSettings;
 		public float resolutionValue = 1280;
 
@@ -202,33 +203,34 @@ namespace codec.PhotoFrame {
 				res *= cropScale;
 			}
 
-			bool isInScene = assureSceneSettings();
-			if(scaled && resolutionType == ResolutionType.UseSceneSettings) {
-				int maxMajorSize = SceneSettings.default_resolutionMaxMajorSize;
-				if(isInScene) maxMajorSize = sceneSettings.resolutionMaxMajorSize;
+			if(scaled && !dontBakePhotoUseSource && resolutionType != ResolutionType.Full) {
+				bool isInScene = assureSceneSettings();
+				if(resolutionType == ResolutionType.UseSceneSettings) {
+					int maxMajorSize = SceneSettings.default_resolutionMaxMajorSize;
+					if(isInScene) maxMajorSize = sceneSettings.resolutionMaxMajorSize;
 
-				res *= Mathf.Clamp01(Math.Min(1, maxMajorSize / Math.Max(res.x, res.y)));
-			}
-			else if(scaled && resolutionType == ResolutionType.AbsoluteMajor) res *= Mathf.Clamp01(Math.Min(1, Mathf.Round(resolutionValue) / Math.Max(res.x, res.y)));
-			else if(scaled && resolutionType == ResolutionType.Relative) res *= Mathf.Clamp01(resolutionValue);
+					res *= Mathf.Clamp01(Math.Min(1, maxMajorSize / Math.Max(res.x, res.y)));
+				}
+				else if(resolutionType == ResolutionType.AbsoluteMajor) res *= Mathf.Clamp01(Math.Min(1, Mathf.Round(resolutionValue) / Math.Max(res.x, res.y)));
+				else if(resolutionType == ResolutionType.Relative) res *= Mathf.Clamp01(resolutionValue);
 
-			bool scaleResolutionBySize = SceneSettings.default_scaleResolutionBySize;
-			float scaleResMin = SceneSettings.default_scaleResMin;
-			float scaleResMax = SceneSettings.default_scaleResMax;
-			if(isInScene) {
-				scaleResolutionBySize = sceneSettings.scaleResolutionBySize;
-				scaleResMin = sceneSettings.scaleResMin;
-				scaleResMax = sceneSettings.scaleResMax;
-			}
+				bool scaleResolutionBySize = SceneSettings.default_scaleResolutionBySize;
+				float scaleResMin = SceneSettings.default_scaleResMin;
+				float scaleResMax = SceneSettings.default_scaleResMax;
+				if(isInScene) {
+					scaleResolutionBySize = sceneSettings.scaleResolutionBySize;
+					scaleResMin = sceneSettings.scaleResMin;
+					scaleResMax = sceneSettings.scaleResMax;
+				}
 
-			if(scaled && scaleResolutionBySize && resolutionType != ResolutionType.Full
-			&& scaleResMin < scaleResMax && scaleResMax != 0) {
-				Vector3 scaleVector = transform.lossyScale;
-				float scale = (scaleVector.x + scaleVector.y + scaleVector.z) / 3f;
-				scale = Mathf.Max(scale, scaleResMin);
-				scale /= scaleResMax;
+				if(scaleResolutionBySize && scaleResMin < scaleResMax && scaleResMax != 0) {
+					Vector3 scaleVector = transform.lossyScale;
+					float scale = (scaleVector.x + scaleVector.y + scaleVector.z) / 3f;
+					scale = Mathf.Max(scale, scaleResMin);
+					scale /= scaleResMax;
 
-				res *= scale;
+					res *= scale;
+				}
 			}
 
 			return new Vector2Int((int)Mathf.Max(1, Mathf.Ceil(res.x)), (int)Mathf.Max(1, Mathf.Ceil(res.y)));

@@ -41,13 +41,18 @@ namespace codec.PhotoFrame {
 			var info = pfs.Select(pf => {
 				pf.getAspectRatios(out float photoAspectRatio, out float frameAspectRatio, out _);
 				pf.getCropUV(photoAspectRatio, frameAspectRatio, out Vector2 uvMin, out Vector2 uvMax);
-				return (texture: pf.photo, point: pf.transform.position, uvMin, uvMax, size: pf.getFinalResolution(false, true));
+				return (texture: pf.photo, point: pf.transform.position, uvMin, uvMax, size: pf.getFinalResolution(false, true), useSrc: pf.dontBakePhotoUseSource);
 			}).ToArray();
 
 			var inputs = new List<(TextureBaker.Input i, int count)>();
 			var indexes = new int[info.Length];
 
 			for(int a = 0; a < info.Length; a++) {
+				if(info[a].useSrc) {
+					indexes[a] = -1;
+					continue;
+				}
+
 				bool original = true;
 				for(int i = 0; i < inputs.Count(); i++) {
 					if(inputs[i].i.texture != info[a].texture) continue;
@@ -212,8 +217,9 @@ namespace codec.PhotoFrame {
 
 				settings.hasBake = true;
 				settings.textures = texturePaths.Select(path => AssetDatabase.LoadAssetAtPath<Texture2D>(path)).ToArray();
-				List<PhotoFrame>[] photoFramesSave = new List<PhotoFrame>[textures.Length].Select(_ => new List<PhotoFrame>()).ToArray();
-				List<Mesh>[] meshesSave = new List<Mesh>[textures.Length].Select(_ => new List<Mesh>()).ToArray();
+				List<PhotoFrame>[] photoFramesSave = new List<PhotoFrame>[textures.Length + 1].Select(_ => new List<PhotoFrame>()).ToArray();
+				List<Mesh>[] meshesSave = new List<Mesh>[textures.Length + 1].Select(_ => new List<Mesh>()).ToArray();
+				List<Material> extraMaterials = new List<Material>();
 
 				for(int i = 0; i < textures.Length; i++) {
 					Progress_SavingTexutes(i, textures.Length);
@@ -223,7 +229,7 @@ namespace codec.PhotoFrame {
 				}
 
 				for(int i = 0; i < photoFrames.Length; i++) {
-					int textureIndex = outputs[indexes[i]].texture;
+					int textureIndex = indexes[i] != -1 ? outputs[indexes[i]].texture : -2;
 					PhotoFrame pf = photoFrames[i];
 
 					if(textureIndex == -1) {
@@ -232,21 +238,35 @@ namespace codec.PhotoFrame {
 					}
 
 					Material sourceMaterial = pf.photoMaterial;
-					Material material = textureMaterials[textureIndex].Find(matInfo => matInfo.source == sourceMaterial).created;
+					Material material = null;
+					if(textureIndex != -2) material = textureMaterials[textureIndex].Find(matInfo => matInfo.source == sourceMaterial).created;
 					if(material == null) {
 						material = new Material(pf.photoMaterial);
-						material.SetTexture(pf.photoMaterialTextureSlot, settings.textures[textureIndex]);
+						if(textureIndex != -2) material.SetTexture(pf.photoMaterialTextureSlot, settings.textures[textureIndex]);
+						else material.SetTexture(pf.photoMaterialTextureSlot, pf.photo);
 						AssetDatabase.CreateAsset(material, $"{folder}/Photo-Material-{System.Guid.NewGuid()}.mat");
-						textureMaterials[textureIndex].Add((source: sourceMaterial, created: material));
+						if(textureIndex != -2) textureMaterials[textureIndex].Add((source: sourceMaterial, created: material));
+						else extraMaterials.Add(material);
 					}
 
 					Progress_SettingUpPhotoFrames(i, photoFrames.Length);
 
 					pf.getAspectRatios(out float photoAspectRatio, out float frameAspectRatio, out _);
 					pf.getCropUV(photoAspectRatio, frameAspectRatio, out Vector2 uvMin, out Vector2 uvMax);
-					(Vector2 newUvMin, Vector2 newUvMax) = CalcFinalUv(uvMin, uvMax, photoFrameInput[indexes[i]].uvMin, photoFrameInput[indexes[i]].uvMax, outputs[indexes[i]].uvMin, outputs[indexes[i]].uvMax, outputs[indexes[i]].uvRotate);
 
-					Mesh mesh = pf.setBakedData(folder, material, newUvMin, newUvMax, outputs[indexes[i]].uvRotate,
+					Vector2 newUvMin, newUvMax;
+					bool uvRotate = false;
+
+					if(indexes[i] != -1) {
+						(newUvMin, newUvMax) = CalcFinalUv(uvMin, uvMax, photoFrameInput[indexes[i]].uvMin, photoFrameInput[indexes[i]].uvMax, outputs[indexes[i]].uvMin, outputs[indexes[i]].uvMax, outputs[indexes[i]].uvRotate);
+						uvRotate = outputs[indexes[i]].uvRotate;
+					}
+					else {
+						newUvMin = uvMin;
+						newUvMax = uvMax;
+					}
+
+					Mesh mesh = pf.setBakedData(folder, material, newUvMin, newUvMax, uvRotate,
 					(type, index, ratio, size) => {
 						if(type == null) return null;
 						var sameInfo = frames.Find(info => info.type == type && info.index == index && info.ratio == ratio);
@@ -254,14 +274,20 @@ namespace codec.PhotoFrame {
 					});
 					AssetDatabase.CreateAsset(mesh, meshPaths[i]);
 
-					photoFramesSave[textureIndex].Add(pf);
-					meshesSave[textureIndex].Add(mesh);
+					if(textureIndex != -2) {
+						photoFramesSave[textureIndex].Add(pf);
+						meshesSave[textureIndex].Add(mesh);
+					}
+					else {
+						photoFramesSave[textures.Length].Add(pf);
+						meshesSave[textures.Length].Add(mesh);
+					}
 				}
 
 				settings.pfCounts = photoFramesSave.Select(a => a.Count).ToArray();
 				settings.photoFrames = photoFramesSave.SelectMany(a => a).ToArray();
 				settings.meshes = meshesSave.SelectMany(a => a).ToArray();
-				settings.materials = textureMaterials.SelectMany(a => a.Select(b => b.created)).ToArray();
+				settings.materials = textureMaterials.SelectMany(a => a.Select(b => b.created)).Concat(extraMaterials).ToArray();
 				settings.frameMeshes = frames.Where(a => a.isGenerated).Select(a => a.prefab.GetComponent<MeshFilter>().sharedMesh).ToArray();
 				settings.framePrefabs = frames.Where(a => a.isGenerated).Select(a => a.prefab).ToArray();
 			}

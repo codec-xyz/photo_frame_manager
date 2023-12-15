@@ -22,6 +22,7 @@ namespace codec.PhotoFrame {
 		SerializedProperty cropOffsetX;
 		SerializedProperty cropOffsetY;
 		SerializedProperty resolutionType;
+		SerializedProperty dontBakePhotoUseSource;
 		SerializedProperty resolutionValue;
 
 		Texture2D cropOverlayTexture;
@@ -40,6 +41,7 @@ namespace codec.PhotoFrame {
 			cropOffsetX = serializedObject.FindProperty("cropOffsetX");
 			cropOffsetY = serializedObject.FindProperty("cropOffsetY");
 			resolutionType = serializedObject.FindProperty("resolutionType");
+			dontBakePhotoUseSource = serializedObject.FindProperty("dontBakePhotoUseSource");
 			resolutionValue = serializedObject.FindProperty("resolutionValue");
 		}
 
@@ -203,10 +205,14 @@ namespace codec.PhotoFrame {
 				GUI.FocusControl("");
 			}
 
+			UtilsGUI.AlignedLeftToggle(new GUIContent("Don't Bake Photo Use Source"), dontBakePhotoUseSource, true);
 			ResolutionType resBefore = (ResolutionType)resolutionType.enumValueIndex;
-			UtilsGUI.AlignedPropertyField(new GUIContent("Resolution Type"), resolutionType);
 			ResolutionType resCurrent = (ResolutionType)resolutionType.enumValueIndex;
-			ResolutionControl(samePhoto, resCurrent);
+			if(dontBakePhotoUseSource.boolValue == false) {
+				UtilsGUI.AlignedPropertyField(new GUIContent("Resolution Type"), resolutionType);
+				resCurrent = (ResolutionType)resolutionType.enumValueIndex;
+				ResolutionControl(samePhoto, resCurrent);
+			}
 
 			GUI.enabled = defaultEnabled;
 
