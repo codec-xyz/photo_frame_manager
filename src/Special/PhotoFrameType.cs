@@ -31,7 +31,7 @@ namespace codec.PhotoFrame {
 		public GameObject[] photoFrames;
 		public Vector2[] aspectRatios;
 
-		public bool haveFrames() => photoFrames?.Length > 0 && aspectRatios?.Length > 0;
+		public bool haveFrames() => photoFrames?.Length > 0 && aspectRatios?.Length > 0 && photoFrames.Where(a => a != null).Any();
 		public GameObject getFrame(int index) => photoFrames?.ElementAtOrDefault(index);
 
 		public GameObject getOrGenerateFrame(int index, float aspectRatio, out bool isGenerated, Vector2 size, bool doGeneration = true) {
@@ -121,7 +121,7 @@ namespace codec.PhotoFrame {
 
 		public int? findFrame(float aspectRatio, bool needsExactMatch, out float frameAspectRatio) {
 			frameAspectRatio = aspectRatio;
-			if(aspectRatios == null || aspectRatios.Length == 0) return null;
+			if(aspectRatios == null || aspectRatios.Length == 0 || !haveFrames()) return null;
 
 			var frames = aspectRatios.Select((ratioVec, i) => {
 				float ratio = Utils.ConvertRatio(ratioVec, 0);

@@ -263,7 +263,7 @@ namespace codec.PhotoFrame {
 
 				GUILayout.Label($"{photoFrame.photoSourceSize.x}px x {photoFrame.photoSourceSize.y}px - {photoFrame.photo.name}");
 				GUILayout.Label($"{finalRes.x}px x {finalRes.y}px final resolution - " + (dataSave * 100f).ToString("0.00") + "% of original - " + (cutoutPercent * 100f).ToString("0.00") + "% cutout");
-				if(photoFrame.frameType != null && photoFrame.frameType.photoFrames.Length != 0) {
+				if(photoFrame.frameType != null && photoFrame.frameType.photoFrames != null && photoFrame.frameType.photoFrames.Length != 0) {
 					string frameInfo = new Fraction(frameAspectRatio).ToString().Replace("/", " \u2215 ") + " = " + frameAspectRatio.ToString("0.000");
 					GUILayout.Label($"Frame - {frameInfo}");
 				}
