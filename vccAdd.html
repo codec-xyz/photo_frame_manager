@@ -10,40 +10,71 @@
 	<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;900&display=swap" rel="stylesheet">
 	<style>
 		:root {
-			--background-color: white;
-			--text-color: #282828;
+			--background: oklch(0.95 0.025 350);
+			--text: oklch(0.15 0.035 350);
+			--gradient001: oklch(0.9 0.06 350);
+			--gradient002: oklch(0.84 0.1 350);
+			--button: oklch(0.79 0.14 350);
+			--button-hover: oklch(0.72 0.17 350);
 		}
 
 		@media (prefers-color-scheme: dark) {
 			:root {
-				--background-color: #282828;
-				--text-color: white;
+				--background: oklch(0.15 0.035 350 / 1);
+				--text: oklch(0.95 0.02 350);
+				--gradient001: oklch(0.27 0.07 350);
+				--gradient002: oklch(0.35 0.09 350);
+				--button: oklch(0.39 0.14 350);
+				--button-hover: oklch(0.46 0.17 350);
 			}
 		}
 
 		* {
 			font-family: 'Roboto', sans-serif;
-			color: var(--text-color)
+			color: var(--text);
 		}
 		html {
 			height: 100%;
 			display: flex;
 		}
 		body {
-			background: var(--background-color);
+			background: var(--background);
 			flex-grow: 1;
 			display: grid;
 			justify-content: center;
 			align-items: center;
 		}
 
-		.action-button {
-			border: 2px solid var(--text-color);
-			padding: 10px;
+		a {
 			text-decoration: none;
+		}
+
+		.main-box {
+			background: linear-gradient(135deg, var(--gradient001) 25%, var(--gradient002));
 			border-radius: 5px;
+		}
+
+		.main-box-header {
+			margin: 50px;
+		}
+
+		.codec-logo {
+			height: 0.8em;
+			padding-inline: 2px;
+			fill: var(--text);
+		}
+
+		.action-button {
+			background: var(--button);
+			padding: 15px;
+			border-radius: 0 0 5px 5px;
 			display: block;
-			width: fit-content;
+			text-align: center;
+			font-weight: bold;
+		}
+
+		.action-button:hover {
+			background: var(--button-hover);
 		}
 	</style>
 	<script>
@@ -55,11 +86,15 @@
 	</script>
 </head>
 <body>
-	<div>
-		<div style="margin-bottom: 1.5em;">
-			<div>Adding, should launch <a href="https://vcc.docs.vrchat.com/">VCC</div>
+	<div class="main-box">
+		<div class="main-box-header">
+			<div style="text-align: right;">Adding... should launch <a href="https://vcc.docs.vrchat.com/"><b>VCC</b></a></div>
 			<div style="font-weight: bold; font-size: 2em;"><a href="https://github.com/codec-xyz/photo_frame_manager">Photo Frame Manager</a></div>
-			<div>by <a href="https://github.com/codec-xyz/">codec</a></div>
+			<div><a href="https://github.com/codec-xyz/">by
+				<svg class="codec-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 4" role="img" aria-label="codec logo">
+					<path d="M0 4h2v-2h-2z M3  4h2v-2h-2z  M6 4h2v-4h-1v2h-1z  M9 4h2v-2h-2z  M12 4h2v-2h-2z"></path>
+				</svg>
+			</a></div>
 		</div>
 		<a class="action-button" id="add-again-link">Try adding again</a>
 	</div>
