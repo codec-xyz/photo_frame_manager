@@ -266,15 +266,19 @@ namespace codec.PhotoFrame {
 	}
 
 	public class MaterialBaker {
-		public Dictionary<(Material material, Texture2D texture), Material> materials = new Dictionary<(Material material, Texture2D texture), Material>();
+		public Dictionary<(Material material, Texture2D texture, string textureSlot), Material> materials = new Dictionary<(Material material, Texture2D texture, string textureSlot), Material>();
 
 		public Material get_orGenerateAndSave(Material srcMaterial, Texture2D texture, string textureSlot, string folder) {
-			bool found = materials.TryGetValue((srcMaterial, texture), out Material material);
+			bool found = materials.TryGetValue((srcMaterial, texture, textureSlot), out Material material);
 			if(!found) {
 				material = new Material(srcMaterial);
-				material.SetTexture(textureSlot, texture);
+				string[] validSlots = material.GetTexturePropertyNames();
+				foreach(string slot in textureSlot.Split(',').Select(slot => slot.Trim())) {
+					if(slot == "" || !validSlots.Contains(slot)) continue;
+					material.SetTexture(slot, texture);
+				}
 				AssetDatabase.CreateAsset(material, $"{folder}/Photo-Material-{System.Guid.NewGuid()}.mat");
-				materials.Add((srcMaterial, texture), material);
+				materials.Add((srcMaterial, texture, textureSlot), material);
 			}
 			return material;
 		}

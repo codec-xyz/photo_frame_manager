@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -145,7 +146,11 @@ namespace codec.PhotoFrame {
 
 			meshRenderer.sharedMaterial = photoFrame.photoMaterial;
 			textureOverride.Clear();
-			textureOverride.SetTexture(photoFrame.photoMaterialTextureSlot, previewTexture);
+			string[] validSlots = photoFrame.photoMaterial.GetTexturePropertyNames();
+			foreach(string slot in photoFrame.photoMaterialTextureSlot.Split(',').Select(slot => slot.Trim())) {
+				if(slot == "" || !validSlots.Contains(slot)) continue;
+				textureOverride.SetTexture(slot, previewTexture);
+			}
 			meshRenderer.SetPropertyBlock(textureOverride);
 
 			bool isGenerated = false;

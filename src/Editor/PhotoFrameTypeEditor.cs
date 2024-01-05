@@ -5,7 +5,6 @@ using System.Linq;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace codec.PhotoFrame {
 	[CustomEditor(typeof(PhotoFrameType))]
@@ -119,11 +118,118 @@ namespace codec.PhotoFrame {
 			};
 		}
 
+		public class MaterialSlotPopup : PopupWindowContent {
+			int extraOptions = -1;
+			string[] optionValues = new string[0];
+			string[] optionDisplayNames = new string[0];
+
+			private SerializedObject obj;
+			private SerializedProperty material;
+			private SerializedProperty textureSlot;
+
+			public MaterialSlotPopup(SerializedObject obj, SerializedProperty material, SerializedProperty textureSlot) {
+				this.obj = obj;
+				this.material = material;
+				this.textureSlot = textureSlot;
+			}
+
+			public override Vector2 GetWindowSize() {
+				return new Vector2(250, 2 + (EditorGUIUtility.singleLineHeight + 2) * Mathf.Max(1, optionValues.Length + (extraOptions == -1 ? 0 : 0.5f)));
+			}
+
+			public override void OnGUI(Rect rect) {
+				if(obj.isEditingMultipleObjects) {
+					EditorGUILayout.HelpBox("Multiple Object Editing Is Not Supported", MessageType.Error);
+					return;
+				}
+
+				obj.Update();
+				Color initialValue = GUI.backgroundColor;
+
+				string strValue = textureSlot.stringValue;
+				HashSet<string> values = new HashSet<string>(strValue.Split(',').Select(v => v.Trim()).Where(v => v != ""));
+				bool change = false;
+
+				if(optionValues.Length == 0) GUILayout.Label("Material has no texture slots");
+
+				for(int i = 0; i < optionValues.Length; i++) {
+					if(extraOptions == i) EditorGUILayout.Space(EditorGUIUtility.singleLineHeight * 0.5f);
+
+					EditorGUI.BeginChangeCheck();
+					bool isOn = EditorGUILayout.ToggleLeft(new GUIContent(optionDisplayNames[i], optionValues[i]), values.Contains(optionValues[i]));
+					if(EditorGUI.EndChangeCheck()) {
+						if(isOn) values.Add(optionValues[i]);
+						else values.Remove(optionValues[i]);
+						change = true;
+					}
+				}
+
+				if(change) textureSlot.stringValue = String.Join(",", values);
+				bool changes = obj.ApplyModifiedProperties();
+				if(changes) PhotoFrame.UpdateAll(true);
+
+				if(Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Escape) {
+					Event.current.Use();
+					GUI.FocusControl("");
+					editorWindow.Close();
+				}
+			}
+
+			public override void OnOpen() {
+				Material singleMaterial = (Material)(material.objectReferenceValue);
+				if(singleMaterial == null || obj.isEditingMultipleObjects) {
+					extraOptions = -1;
+					optionValues = new string[0];
+					optionDisplayNames = new string[0];
+					return;
+				}
+
+				List<string> list_optionValues = singleMaterial.GetTexturePropertyNames().ToList();
+				List<string> list_optionDisplayNames = singleMaterial.GetTexturePropertyNames().Select(a => ObjectNames.NicifyVariableName(a)).ToList();
+				string strValue = textureSlot.stringValue;
+				HashSet<string> values = new HashSet<string>(strValue.Split(',').Select(v => v.Trim()).Where(v => v != ""));
+				extraOptions = -1;
+
+				foreach(string value in values) {
+					if(!list_optionValues.Contains(value)) {
+						if(extraOptions == -1) extraOptions = list_optionValues.Count();
+						list_optionValues.Add(value);
+						list_optionDisplayNames.Add("(Invalid) " + ObjectNames.NicifyVariableName(value));
+					}
+				}
+
+				if(extraOptions == 0) extraOptions = -1;
+
+				optionValues = list_optionValues.ToArray();
+				optionDisplayNames = list_optionDisplayNames.ToArray();
+			}
+		}
+
 		public override void OnInspectorGUI() {
 			CustomEditorGUI.lockValue = false;
 			serializedObject.Update();
-			UtilsGUI.AlignedPropertyField(new GUIContent("Photo Material"), material);
-			UtilsGUI.AlignedPropertyField(new GUIContent("Texture Slot", "Slot to use on the photo material. If left empty _MainTex is used. Ignored if no photo material is set"), textureSlot);
+			EditorGUI.BeginChangeCheck();
+			Material newMaterial = (Material)UtilsGUI.AlignedObjectField(new GUIContent("Photo Material"), material.objectReferenceValue, typeof(Material));
+			bool materialUpdate = false;
+			if(EditorGUI.EndChangeCheck()) {
+				material.objectReferenceValue = newMaterial;
+				materialUpdate = true;
+			}
+
+			if(serializedObject.isEditingMultipleObjects || material.objectReferenceValue != null)
+			{
+				var label = new GUIContent("Texture Slot", "List of slots to use on the photo's material (In preview mode some textures like normal textures do not get enabled by Unity  unless that texture is set in the source material. This does not effect baked photos)");
+				string value = "None";
+				if(textureSlot.hasMultipleDifferentValues) value = "Mixed...";
+				else if(textureSlot.stringValue != "") value = String.Join(", ", new HashSet<string>(textureSlot.stringValue.Split(',').Select(v => v.Trim()).Where(v => v != "")).Select(v => ObjectNames.NicifyVariableName(v)));
+
+				if(serializedObject.isEditingMultipleObjects) GUI.enabled = false;
+				if(UtilsGUI.AlignedCustomDropdown(label, new GUIContent(value), FocusType.Keyboard, out Rect rect)) {
+					UnityEditor.PopupWindow.Show(rect, new MaterialSlotPopup(serializedObject, material, textureSlot));
+				}
+				GUI.enabled = true;
+			}
+
 			UtilsGUI.AlignedPropertyField(new GUIContent("Photo Offset"), photoOffset);
 			UtilsGUI.AlignedPropertyField(new GUIContent("Photo Rotation"), photoRotation);
 			UtilsGUI.AlignedPropertyField(new GUIContent("Photo Dimensions"), photoDimensions);
@@ -193,6 +299,16 @@ namespace codec.PhotoFrame {
 			}
 
 			bool changes = serializedObject.ApplyModifiedProperties();
+
+			if(materialUpdate && newMaterial != null) {
+				string[] newMaterialSlots = newMaterial.GetTexturePropertyNames();
+
+				foreach(PhotoFrameType pfT in serializedObject.targetObjects.Cast<PhotoFrameType>()) {
+					pfT.textureSlot = String.Join(",", new HashSet<string>(pfT.textureSlot.Split(',').Select(v => v.Trim()).Where(v => v != "")).Where(v => newMaterialSlots.Contains(v)));
+					if(pfT.textureSlot == "" && newMaterialSlots.Length > 0) pfT.textureSlot = newMaterialSlots[0];
+				}
+			}
+
 			if(changes) PhotoFrame.UpdateAll(true);
 		}
 

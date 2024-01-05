@@ -31,7 +31,7 @@ namespace codec.PhotoFrame {
 				return _defaultMaterial;
 			}
 		}
-		public string photoMaterialTextureSlot => (frameType && frameType.material && frameType.textureSlot != "") ? frameType.textureSlot : "_MainTex";
+		public string photoMaterialTextureSlot => (frameType && frameType.material) ? frameType.textureSlot : "_MainTex";
 
 		[NonSerialized] public SceneSettings sceneSettings;
 

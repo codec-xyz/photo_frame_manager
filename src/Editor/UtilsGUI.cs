@@ -5,8 +5,6 @@ using System.Linq;
 using System.Reflection;
 using UnityEditor;
 using UnityEngine;
-using static Codice.CM.WorkspaceServer.WorkspaceTreeDataStore;
-using UnityEngine.UIElements;
 
 namespace codec {
 	public static class UtilsGUI {
@@ -56,10 +54,23 @@ namespace codec {
 			return rect;
 		}
 
+		public static float GetPropertyHeight(GUIContent label, SerializedProperty property) {
+			var method_GetHandler = typeof(EditorGUILayout).Assembly.GetType("UnityEditor.ScriptAttributeUtility").GetMethod("GetHandler", BindingFlags.NonPublic | BindingFlags.Static, null, new[] { typeof(SerializedProperty) }, null);
+			var result_GetHandler = method_GetHandler.Invoke(null, new object[] { property });
+
+			var method_GetHeight = typeof(EditorGUILayout).Assembly.GetType("UnityEditor.PropertyHandler").GetMethod("GetHeight", BindingFlags.Public | BindingFlags.Instance, null, new[] { typeof(SerializedProperty), typeof(GUIContent), typeof(bool) }, null);
+			var result_GetHeight = (float)method_GetHeight.Invoke(result_GetHandler, new object[] { property, label, false });
+
+			return result_GetHeight;
+		}
+
 		public delegate void AlignedFieldInner(Rect rect, GUIContent label);
 		public static void AlignedField(GUIContent label, SerializedProperty property, AlignedFieldInner inner) {
+			AlignedField(label, property, property != null ? GetPropertyHeight(label, property) : EditorGUIUtility.singleLineHeight, inner);
+		}
+		public static void AlignedField(GUIContent label, SerializedProperty property, float height, AlignedFieldInner inner) {
 			float savedLabelWidth = EditorGUIUtility.labelWidth;
-			Rect rect = GUILayoutUtility.GetRect(0, EditorGUIUtility.singleLineHeight, GUI.skin.horizontalSlider, GUILayout.ExpandWidth(true));
+			Rect rect = GUILayoutUtility.GetRect(0, height, GUI.skin.horizontalSlider, GUILayout.ExpandWidth(true));
 			if(property != null) label = EditorGUI.BeginProperty(rect, label, property);
 			if(CustomEditorGUI.alignment == GUILabelAlignment.Right) rect = DoFieldAlignment(rect, GUI.skin.label.CalcSize(label).x);
 			inner(rect, label);
@@ -69,8 +80,11 @@ namespace codec {
 
 		public delegate T AlignedFieldInner<T>(Rect rect, GUIContent label);
 		public static T AlignedField<T>(GUIContent label, SerializedProperty property, AlignedFieldInner<T> inner) {
+			return AlignedField(label, property, property != null ? GetPropertyHeight(label, property) : EditorGUIUtility.singleLineHeight, inner);
+		}
+		public static T AlignedField<T>(GUIContent label, SerializedProperty property, float height, AlignedFieldInner<T> inner) {
 			float savedLabelWidth = EditorGUIUtility.labelWidth;
-			Rect rect = GUILayoutUtility.GetRect(0, EditorGUIUtility.singleLineHeight, GUI.skin.horizontalSlider, GUILayout.ExpandWidth(true));
+			Rect rect = GUILayoutUtility.GetRect(0, height, GUI.skin.horizontalSlider, GUILayout.ExpandWidth(true));
 			if(property != null) label = EditorGUI.BeginProperty(rect, label, property);
 			if(CustomEditorGUI.alignment == GUILabelAlignment.Right) rect = DoFieldAlignment(rect, GUI.skin.label.CalcSize(label).x);
 			T value = inner(rect, label);
@@ -189,6 +203,28 @@ namespace codec {
 			EditorGUI.BeginChangeCheck();
 			var value = AlignedField(label, property, (rect, labelA) => CustomEditorGUI.Vector2Field(rect, labelA, property.vector2Value));
 			if(EditorGUI.EndChangeCheck()) property.vector2Value = value;
+		}
+
+		public static void AlignedMultiSelectPopup(GUIContent label, string value, string[] valueOptions, string[] valueOptionsDisplayName) => AlignedField(label, null, (rect, labelA) => CustomEditorGUI.MultiSelectPopup(rect, labelA, value, valueOptions, valueOptionsDisplayName));
+
+		public static void AlignedMultiSelectPopup(GUIContent label, string value, string[] valueOptions, string[] valueOptionsDisplayName, string invalidPrepend) => AlignedField(label, null, (rect, labelA) => CustomEditorGUI.MultiSelectPopup(rect, labelA, value, valueOptions, valueOptionsDisplayName, invalidPrepend));
+
+		public static void AlignedMultiSelectPopup(GUIContent label, SerializedProperty property, string[] valueOptions, string[] valueOptionsDisplayName) => AlignedField(label, property, (rect, labelA) => CustomEditorGUI.MultiSelectPopup(rect, labelA, property, valueOptions, valueOptionsDisplayName));
+
+		public static void AlignedMultiSelectPopup(GUIContent label, SerializedProperty property, string[] valueOptions, string[] valueOptionsDisplayName, string invalidPrepend) => AlignedField(label, property, (rect, labelA) => CustomEditorGUI.MultiSelectPopup(rect, labelA, property, valueOptions, valueOptionsDisplayName, invalidPrepend));
+
+		public static bool AlignedCustomDropdown(GUIContent label, GUIContent dropdown, FocusType focusType, out Rect popupRect) {
+			Rect returnRect = new Rect();
+			bool returnValue = AlignedField(label, null, (rect, labelA) => {
+				EditorGUI.PrefixLabel(rect, labelA);
+				rect.x += EditorGUIUtility.labelWidth + 2;
+				rect.width -= EditorGUIUtility.labelWidth + 2;
+				returnRect = rect;
+				return EditorGUI.DropdownButton(rect, dropdown, focusType);
+			});
+
+			popupRect = returnRect;
+			return returnValue;
 		}
 
 		public static string MultiText(int count, bool isSame, string single, string multi, string multiSome) {

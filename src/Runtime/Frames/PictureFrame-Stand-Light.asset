@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: PictureFrame-Stand-Light
   m_EditorClassIdentifier: 
   material: {fileID: 2100000, guid: d0fb77b9855f5944ba0d734f1b9aa9ac, type: 2}
-  textureSlot: 
+  textureSlot: _MainTex
   photoOffset: {x: 0, y: 0, z: 0}
   photoRotation: {x: -15, y: 0, z: 0}
   photoDimensions: 0

@@ -156,7 +156,7 @@ Select the file and look in the **Inspector** to see the settings.
 
 **Photo Material** - the material that gets copied and used for the photo. All values in the material are kept. Leaving this blank will result in the photo using the default unlit material
 
-**Texture Slot** - a string of the texture slot to use on the material for the photo. If left blank the mainTexture slot is used
+**Texture Slot** - list of slots to use on the photo's material (In preview mode some textures like normal textures do not get enabled by Unity  unless that texture is set in the source material. This does not effect baked photos)
 
 **Photo Offset** - photo offset for frame
 

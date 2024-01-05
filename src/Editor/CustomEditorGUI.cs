@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using UnityEditor;
@@ -144,6 +145,38 @@ namespace codec {
 			value = (Vector2)typeof(EditorGUI).GetMethod("Vector3Field", BindingFlags.NonPublic | BindingFlags.Static, null, new[] { typeof(Rect), typeof(Vector3) }, null).Invoke(null, new object[] { position, value });
 			GUI.enabled = initialEnabled;
 			return value;
+		}
+
+		public static string MultiSelectPopup(Rect position, GUIContent label, string value, string[] valueOptions, string[] valueOptionsDisplayName, string invalidPrepend = "(Invalid) ") {
+			List<string> optionsList = new List<string>(valueOptions);
+			List<string> optionsDisplayNameList = new List<string>(valueOptionsDisplayName);
+			IEnumerable<string> values = value.Split(',').Select(v => v.Trim()).Where(v => v != "");
+			int mask = 0;
+			foreach(string v in values) {
+				int index = optionsList.IndexOf(v);
+				if(index == -1) {
+					optionsList.Add(v);
+					optionsDisplayNameList.Add(invalidPrepend + v);
+					index = optionsList.Count - 1;
+				}
+
+				mask |= 1 << index;
+			}
+
+			mask = EditorGUI.MaskField(position, label, mask, optionsDisplayNameList.ToArray());
+
+			value = "";
+			for(int i = 0; i < 31 && mask > 0; i++, mask >>= 1) {
+				if((mask & 1) != 0) value += optionsList[i] + ",";
+			}
+
+			return value;
+		}
+
+		public static void MultiSelectPopup(Rect position, GUIContent label, SerializedProperty property, string[] valueOptions, string[] valueOptionsDisplayName, string invalidPrepend = "(Invalid) ") {
+			EditorGUI.BeginChangeCheck();
+			string stringValue = MultiSelectPopup(position, label, property.stringValue, valueOptions, valueOptionsDisplayName, invalidPrepend);
+			if(EditorGUI.EndChangeCheck()) property.stringValue = stringValue;
 		}
 	}
 }

@@ -91,7 +91,7 @@ namespace codec.PhotoFrame {
 
 			bool isStretchWarn = Utils.Collapse(targets.Cast<PhotoFrame>().Select(pf => pf.isPhotoStretchedWarn), out isSame, true);
 			if(isStretchWarn) {
-				UtilsGUI.BeginHelpBox(UtilsGUI.MultiText(targets.Length, isSame, "Photo is", "Photos are", "Some photos are") + "being stretched during import", MessageType.Info);
+				UtilsGUI.BeginHelpBox(UtilsGUI.MultiText(targets.Length, isSame, "Photo is", "Photos are", "Some photos are") + " being stretched during import", MessageType.Info);
 				GUILayout.FlexibleSpace();
 				if(GUILayout.Button("Fix now")) {
 					foreach(PhotoFrame pf in targets) pf.fixPhotoStretch();

@@ -18,6 +18,22 @@ namespace codec {
 			return result_GetSliderRect;
 		}
 
+		public static Rect handleGenericLayout(bool hasLabel, GUIStyle style, params GUILayoutOption[] options) {
+			if(options == null) options = new GUILayoutOption[] { };
+
+			var result_GetSliderRect = EditorGUILayout.GetControlRect(hasLabel, 18f, style, options);
+
+			var field_TempContent = typeof(EditorGUILayout).GetField("s_LastRect", BindingFlags.NonPublic | BindingFlags.Static);
+			field_TempContent.SetValue(null, result_GetSliderRect);
+
+			return result_GetSliderRect;
+		}
+
+		public static Rect get_s_LastRect() {
+			var field_TempContent = typeof(EditorGUILayout).GetField("s_LastRect", BindingFlags.NonPublic | BindingFlags.Static);
+			return (Rect)field_TempContent.GetValue(null);
+		}
+
 		public static float SliderAllOptions(float value, float leftValue, float rightValue, float hardMin = float.MinValue, float hardMax = float.MaxValue, float power = 1, params GUILayoutOption[] options) {
 			return CustomEditorGUI.SliderAllOptions(handleSliderLayout(false, options), (GUIContent)null, value, leftValue, rightValue, hardMin, hardMax, power);
 		}
@@ -64,6 +80,22 @@ namespace codec {
 
 		public static void IntSliderAllOptions(GUIContent label, SerializedProperty property, int leftValue, int rightValue, int hardMin = int.MinValue, int hardMax = int.MaxValue, params GUILayoutOption[] options) {
 			CustomEditorGUI.IntSliderAllOptions(handleSliderLayout(true, options), label, property, leftValue, rightValue, hardMin, hardMax);
+		}
+
+		public static void MultiSelectPopup(GUIContent label, string value, string[] valueOptions, string[] valueOptionsDisplayName, GUIStyle style, params GUILayoutOption[] options) {
+			CustomEditorGUI.MultiSelectPopup(handleGenericLayout(true, style, options), label, value, valueOptions, valueOptionsDisplayName);
+		}
+
+		public static void MultiSelectPopup(GUIContent label, string value, string[] valueOptions, string[] valueOptionsDisplayName, string invalidPrepend, GUIStyle style, params GUILayoutOption[] options) {
+			CustomEditorGUI.MultiSelectPopup(handleGenericLayout(true, style, options), label, value, valueOptions, valueOptionsDisplayName, invalidPrepend);
+		}
+
+		public static void MultiSelectPopup(GUIContent label, SerializedProperty value, string[] valueOptions, string[] valueOptionsDisplayName, GUIStyle style, params GUILayoutOption[] options) {
+			CustomEditorGUI.MultiSelectPopup(handleGenericLayout(true, style, options), label, value, valueOptions, valueOptionsDisplayName);
+		}
+
+		public static void MultiSelectPopup(GUIContent label, SerializedProperty value, string[] valueOptions, string[] valueOptionsDisplayName, string invalidPrepend, GUIStyle style, params GUILayoutOption[] options) {
+			CustomEditorGUI.MultiSelectPopup(handleGenericLayout(true, style, options), label, value, valueOptions, valueOptionsDisplayName, invalidPrepend);
 		}
 	}
 }
