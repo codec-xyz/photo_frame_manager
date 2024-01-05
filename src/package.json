@@ -1,6 +1,6 @@
 {
 	"name": "wtf.codec.photo-frame-manager",
-	"version": "2.1.0",
+	"version": "2.2.0",
 	"displayName": "Photo Frame Manager",
 	"description": "Photo frame manager and optimizer package for Unity. Has photo cropping, scaling, and resizing with live previews in the 3d scene and inspector. Bakes photos to optimized textures which reduce gpu memory usage, lower the material count, and are optimized for mipmap streaming.\n\nhttps://github.com/codec-xyz/photo_frame_manager",
 	"unity": "2019.4",
