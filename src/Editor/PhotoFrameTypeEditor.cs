@@ -138,34 +138,46 @@ namespace codec.PhotoFrame {
 			}
 
 			public override void OnGUI(Rect rect) {
-				if(obj.isEditingMultipleObjects) {
-					EditorGUILayout.HelpBox("Multiple Object Editing Is Not Supported", MessageType.Error);
+				if(optionValues.Length == 0) {
+					GUILayout.Label("Material has no texture slots");
 					return;
 				}
 
 				obj.Update();
 				Color initialValue = GUI.backgroundColor;
 
-				string strValue = textureSlot.stringValue;
-				HashSet<string> values = new HashSet<string>(strValue.Split(',').Select(v => v.Trim()).Where(v => v != ""));
-				bool change = false;
+				Dictionary<string, int> values = new Dictionary<string, int>();
+				foreach(PhotoFrameType pFT in obj.targetObjects) {
+					foreach(string textureSlot in new HashSet<string>(pFT.textureSlot.Split(',').Select(v => v.Trim()).Where(v => v != ""))) {
+						values[textureSlot] = values.GetValueOrDefault(textureSlot, 0) + 1;
+					}
+				}
 
-				if(optionValues.Length == 0) GUILayout.Label("Material has no texture slots");
+				bool changes = false;
 
 				for(int i = 0; i < optionValues.Length; i++) {
 					if(extraOptions == i) EditorGUILayout.Space(EditorGUIUtility.singleLineHeight * 0.5f);
 
 					EditorGUI.BeginChangeCheck();
-					bool isOn = EditorGUILayout.ToggleLeft(new GUIContent(optionDisplayNames[i], optionValues[i]), values.Contains(optionValues[i]));
+					EditorGUI.showMixedValue = 0 < values.GetValueOrDefault(optionValues[i]) && values.GetValueOrDefault(optionValues[i]) < obj.targetObjects.Length;
+					bool isOn = EditorGUILayout.ToggleLeft(new GUIContent(optionDisplayNames[i], optionValues[i]), values.GetValueOrDefault(optionValues[i], 0) != 0);
+					EditorGUI.showMixedValue = false;
 					if(EditorGUI.EndChangeCheck()) {
-						if(isOn) values.Add(optionValues[i]);
-						else values.Remove(optionValues[i]);
-						change = true;
+						foreach(PhotoFrameType pFT in obj.targetObjects) {
+							var set = new HashSet<string>(pFT.textureSlot.Split(',').Select(v => v.Trim()).Where(v => v != ""));
+							if(isOn) set.Add(optionValues[i]);
+							else set.Remove(optionValues[i]);
+							var list = set.ToList();
+							list.Sort();
+							pFT.textureSlot = String.Join(",", list);
+							string action = isOn ? "added" : "removed";
+							Undo.RecordObject(pFT, $"PhotoFrameType.textureSlot {action} {optionValues[i]}");
+							EditorUtility.SetDirty(pFT);
+							changes = true;
+						}
 					}
 				}
 
-				if(change) textureSlot.stringValue = String.Join(",", values);
-				bool changes = obj.ApplyModifiedProperties();
 				if(changes) PhotoFrame.UpdateAll(true);
 
 				if(Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Escape) {
@@ -177,7 +189,7 @@ namespace codec.PhotoFrame {
 
 			public override void OnOpen() {
 				Material singleMaterial = (Material)(material.objectReferenceValue);
-				if(singleMaterial == null || obj.isEditingMultipleObjects) {
+				if(singleMaterial == null) {
 					extraOptions = -1;
 					optionValues = new string[0];
 					optionDisplayNames = new string[0];
@@ -209,21 +221,23 @@ namespace codec.PhotoFrame {
 			CustomEditorGUI.lockValue = false;
 			serializedObject.Update();
 			EditorGUI.BeginChangeCheck();
+			EditorGUI.showMixedValue = material.hasMultipleDifferentValues;
 			Material newMaterial = (Material)UtilsGUI.AlignedObjectField(new GUIContent("Photo Material"), material.objectReferenceValue, typeof(Material));
+			EditorGUI.showMixedValue = false;
 			bool materialUpdate = false;
 			if(EditorGUI.EndChangeCheck()) {
 				material.objectReferenceValue = newMaterial;
 				materialUpdate = true;
 			}
 
-			if(serializedObject.isEditingMultipleObjects || material.objectReferenceValue != null)
+			if(material.objectReferenceValue != null || material.hasMultipleDifferentValues)
 			{
 				var label = new GUIContent("Texture Slot", "List of slots to use on the photo's material (In preview mode some textures like normal textures do not get enabled by Unity  unless that texture is set in the source material. This does not effect baked photos)");
 				string value = "None";
 				if(textureSlot.hasMultipleDifferentValues) value = "Mixed...";
 				else if(textureSlot.stringValue != "") value = String.Join(", ", new HashSet<string>(textureSlot.stringValue.Split(',').Select(v => v.Trim()).Where(v => v != "")).Select(v => ObjectNames.NicifyVariableName(v)));
 
-				if(serializedObject.isEditingMultipleObjects) GUI.enabled = false;
+				if(material.hasMultipleDifferentValues) GUI.enabled = false;
 				if(UtilsGUI.AlignedCustomDropdown(label, new GUIContent(value), FocusType.Keyboard, out Rect rect)) {
 					UnityEditor.PopupWindow.Show(rect, new MaterialSlotPopup(serializedObject, material, textureSlot));
 				}
