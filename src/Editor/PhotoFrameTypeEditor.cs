@@ -246,10 +246,11 @@ namespace codec.PhotoFrame {
 
 			UtilsGUI.AlignedPropertyField(new GUIContent("Photo Offset"), photoOffset);
 			UtilsGUI.AlignedPropertyField(new GUIContent("Photo Rotation"), photoRotation);
-			UtilsGUI.AlignedPropertyField(new GUIContent("Photo Dimensions"), photoDimensions);
+			UtilsGUI.AlignedPropertyField(new GUIContent("Photo Dimensions", "Setting for sizing the photo to match the frame\n - Larger Side Is One\n - Smaller Side Is One\n - Use Aspect Ratio - uses the Aspect Ratio value in the frame model list as the size"), photoDimensions);
 
+			bool isScaleFrame = (FrameMatching)frameMatching.enumValueIndex == FrameMatching.ScaleToPhoto;
 			bool isGenerateFrame = (FrameMatching)frameMatching.enumValueIndex == FrameMatching.GenerateFrame;
-			UtilsGUI.AlignedField(new GUIContent("Frame Matching", "Options to modify frames to match aspect ratio\n- None\n- Scale To Photo - Scales the closest frame to any aspect ratio\n- Generate Frame - Edits the closest frame mesh to match any aspect ratio without streaching the frame"), frameMatching, (rect, labelA) => {
+			UtilsGUI.AlignedField(new GUIContent("Frame Matching", "Settings for how the frame is resized to match the photo (The closest aspect ratio frame model is picked and modified)\n- None - the frame is not resized. The photo will be cropped to the frame's aspect ratio\n- Scale To Photo - the frame is scaled to the photo's aspect ratio\n- Generate Frame -  algorithm to resize frame meshes to different aspect ratios. Preserves frame border sizes and offsets texture UVs to avoid texture stretching"), frameMatching, (rect, labelA) => {
 				Vector2 buttonRect = UtilsGUI.OptionsDropDownSize();
 				if(isGenerateFrame) rect.width -= buttonRect.x;
 				EditorGUI.PropertyField(rect, frameMatching, labelA, false);
@@ -269,13 +270,18 @@ namespace codec.PhotoFrame {
 				}
 			});
 
+			EditorGUI.indentLevel++;
+
 			if(isGenerateFrame) {
-				EditorGUI.indentLevel++;
-				UtilsGUI.AlignedPropertyField(new GUIContent("Offset Frame UVs", "Offset each uv the same as its vertex when editing frame meshes"), offsetUvs);
-				UtilsGUI.AlignedPropertyField(new GUIContent("UV Orientation Threshold", "Threshold used to filter out unaligned edges for finding uv island orientation"), uvOrientationThreshold);
-				UtilsGUI.AlignedPropertyField(new GUIContent("Limit Aspect Ratios To List"), limitAspectRatiosToList);
-				EditorGUI.indentLevel--;
+				UtilsGUI.AlignedPropertyField(new GUIContent("Offset Frame UVs", "If UVs should offset to avoid texture stretching"), offsetUvs);
+				UtilsGUI.AlignedPropertyField(new GUIContent("UV Orientation Threshold", "Threshold used to filter aligned edges to determine UV island orientation"), uvOrientationThreshold);
 			}
+
+			if(isScaleFrame || isGenerateFrame) {
+				UtilsGUI.AlignedPropertyField(new GUIContent("Limit Aspect Ratios To List", "Limit available aspect ratios to the model list. This is lets you define a list of aspect ratio by adding other entries to the model list with no model set. The frame matching functionally only uses the closest aspect ratio with a model set"), limitAspectRatiosToList);
+			}
+
+			EditorGUI.indentLevel--;
 
 			GUILayout.Space(EditorGUIUtility.singleLineHeight);
 

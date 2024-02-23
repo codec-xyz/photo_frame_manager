@@ -133,7 +133,7 @@ namespace codec.PhotoFrame {
 
 			if(needsExactMatch && frameMatching == FrameMatching.None && bestFrame.ratio != aspectRatio) return null;
 
-			if(frameMatching == FrameMatching.GenerateFrame && limitAspectRatiosToList) {
+			if(limitAspectRatiosToList && (frameMatching == FrameMatching.ScaleToPhoto || frameMatching == FrameMatching.GenerateFrame)) {
 				var bestRatio = frames.Min().ratio;
 				if(needsExactMatch && bestRatio != aspectRatio) return null;
 				frameAspectRatio = bestRatio;
@@ -156,6 +156,14 @@ namespace codec.PhotoFrame {
 			if(aspectRatios == null) return false;
 			var set = new HashSet<Vector2>(aspectRatios);
 			return set.Count != aspectRatios.Length;
+		}
+
+		public bool hasAspectRatioList() {
+			return haveFrames() && (
+				frameMatching == FrameMatching.None
+			|| (frameMatching == FrameMatching.ScaleToPhoto && limitAspectRatiosToList)
+			|| (frameMatching == FrameMatching.GenerateFrame && limitAspectRatiosToList)
+			);
 		}
 	}
 }

@@ -126,11 +126,7 @@ namespace codec.PhotoFrame {
 
 			PhotoFrameType pfType = frameType.objectReferenceValue as PhotoFrameType;
 
-			if(pfType && pfType.haveFrames() && (pfType.frameMatching == FrameMatching.None
-			|| pfType.frameMatching == FrameMatching.ScaleToPhoto
-			|| (pfType.frameMatching == FrameMatching.GenerateFrame && pfType.limitAspectRatiosToList))) {
-				AspectRatioDropdown(pfType);
-			}
+			if(pfType && pfType.hasAspectRatioList()) AspectRatioDropdown(pfType);
 			else UtilsGUI.AlignedPropertyField(new GUIContent("Aspect Ratio"), aspectRatio);
 
 			CustomEditorGUI.lockValue = false;

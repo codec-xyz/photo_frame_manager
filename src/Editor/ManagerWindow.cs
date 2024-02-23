@@ -192,7 +192,7 @@ namespace codec.PhotoFrame {
 
 		public void advancedSettingsDropdown() {
 			UtilsGUI.AlignedSliderAllOptions(new GUIContent("Texture Fit",
-				"Sorting prioritization (spacial sorting for better mipmap streaming vs fewer textures)\n"
+				"Sorting prioritization (special sorting for better mipmap streaming vs fewer textures)\n"
 				+ "0 - sorted for better mipmap streaming\n1 - sorted for fewer textures"), SceneSettings.active.s_textureFit, 0, 1, 0, float.MaxValue);
 			UtilsGUI.AlignedSliderAllOptions(new GUIContent("Estimated Pack Efficiency", "Expected packing efficiency used when sorting"), SceneSettings.active.s_estimatedPackEfficiency, 0.1f, 1, 0, 1);
 			UtilsGUI.AlignedSliderAllOptions(new GUIContent("Skyline Max Spread", "Parameter for the packing algorithm"), SceneSettings.active.s_skylineMaxSpread, 0, 1, 0, 1);
