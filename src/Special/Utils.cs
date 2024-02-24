@@ -12,9 +12,9 @@ namespace codec.PhotoFrame {
 	public static class Utils {
 		public static IEnumerable<T> LoadedScenes_FindComponentsOfType<T>(bool activeSceneOnly = false) where T : Component {
 			Scene activeScene = SceneManager.GetActiveScene();
-			return Resources.FindObjectsOfTypeAll<T>().Where(pf => {
-				if(activeSceneOnly) return pf.gameObject.scene == activeScene;
-				return pf.gameObject.scene.name != null;
+			return Resources.FindObjectsOfTypeAll<T>().Where(o => {
+				if(activeSceneOnly) return o.gameObject.scene == activeScene;
+				return o.gameObject.scene.name != null;
 			});
 		}
 
