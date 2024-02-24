@@ -141,6 +141,10 @@ namespace codec.PhotoFrame {
 			active = ofScene(SceneManager.GetActiveScene());
 		}
 
+		public static bool DoesSceneNeedBake(Scene scene) {
+			return FindObjectsOfType<PhotoFrame>(true).Where(pf => pf.gameObject.scene == scene && !pf.bakedData).Any();
+		}
+
 		public void Reset() {
 			textureSize = default_textureSize;
 			margin = default_margin;

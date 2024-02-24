@@ -3,7 +3,8 @@
     "references": [
         "GUID:2665a8d13d1b3f18800f46e256720795",
         "GUID:d8b63aba1907145bea998dd612889d6b",
-        "GUID:b06919354e0d57443aec696fb3c7d51f"
+        "GUID:b06919354e0d57443aec696fb3c7d51f",
+        "GUID:21332e1f0d937794d916d2402ba1943a"
     ],
     "includePlatforms": [
         "Editor"
@@ -14,6 +15,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.vrchat.base",
+            "expression": "3.0.9",
+            "define": "VRC"
+        }
+    ],
     "noEngineReferences": false
 }

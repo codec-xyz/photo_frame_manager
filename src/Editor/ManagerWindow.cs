@@ -85,10 +85,12 @@ namespace codec.PhotoFrame {
 		//}
 
 		[MenuItem("Photo Frames/Bake Photo Frames", priority = 3)]
-		public static void BakeTextures() {
+		public static void BakeTexturesMenu() => BakeTextures();
+
+		public static void BakeTextures(bool bypassSaveDialog = false) {
 			SceneSettings.AssureActiveNotMissing();
 			Scene activeScene = EditorSceneManager.GetActiveScene();
-			if(activeScene.isDirty && !EditorUtility.DisplayDialog("Bake Photo Frames", "Baking will save the scene. Okay?", "Bake and Save", "Cancel")) {
+			if(!bypassSaveDialog && activeScene.isDirty && !EditorUtility.DisplayDialog("Bake Photo Frames", "Baking will save the scene. Okay?", "Bake and Save", "Cancel")) {
 				return;
 			}
 
